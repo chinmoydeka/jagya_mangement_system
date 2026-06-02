@@ -77,6 +77,28 @@ window.dispatchEvent(new CustomEvent('jcms-toast', {
 }));
 ```
 
+### Rule 2.10: System-Wide Dark Mode Handling
+We enforce a bulletproof, flash-free dark mode handling standard across the entire application:
+* **Tailwind Class-Based Activation**: Always control dark mode by toggle-applying the `.dark` class to the root `document.documentElement` element.
+* **Flash Prevention (Critical)**: To avoid a blinding Flash of Incorrect Theme (FOIT) on page load, a lightweight blocking script must run in the `<head>` of the main template (`app.blade.php`) *before* CSS and JS stylesheets render:
+  ```html
+  <script>
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+      } else {
+          document.documentElement.classList.remove('dark');
+      }
+  </script>
+  ```
+* **Unified Theme Storage**: Save the user's active theme state in `localStorage.theme` using three mutually exclusive values: `'light'`, `'dark'`, or `'system'`. If set to `'system'`, immediately synchronize with the OS preference and listen to changes dynamically via the `(prefers-color-scheme: dark)` media query.
+* **Slate/Zinc Dark Color Palette**:
+  * Page Background: `dark:bg-slate-950`
+  * Panels, Cards, Drawer & Sidebar: `dark:bg-slate-900`
+  * Borders, Dividers, & Lines: `dark:border-slate-800`
+  * High-Contrast Text (Headings/Labels): `dark:text-slate-100` or `dark:text-slate-200`
+  * Muted/Metadata Text (Subtitles/Captions): `dark:text-slate-400` or `dark:text-slate-500`
+* **Tailwind & MUI Cohesion**: When custom-styling MUI components using `sx` properties, always utilize class-conditional styles or dynamic CSS variables to ensure that MUI cards, dividers, and dialog content adapt seamlessly and instantly to the slate color scheme when dark mode is enabled.
+
 ---
 
 ## 3. General Development & Polish Workflow

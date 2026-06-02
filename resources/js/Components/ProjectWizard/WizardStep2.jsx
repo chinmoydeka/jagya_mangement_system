@@ -12,13 +12,12 @@ export default function WizardStep2({ data, update }) {
     function handleLocalFiles(e) {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
-        const isFirst = data.documents.length === 0;
-        const newDocs = files.map((file, index) => ({
+        const newDocs = files.map(file => ({
             id: `doc_${Date.now()}_${Math.random()}`,
             file,
             name: file.name.replace(/\.[^.]+$/, ''),
             description: '',
-            category: (isFirst && index === 0) ? 'agreement' : 'general',
+            category: 'general',
             file_type: file.type,
             file_size: file.size,
         }));
@@ -29,14 +28,13 @@ export default function WizardStep2({ data, update }) {
     // Handle selected manager assets
     function handleFileSelectorSelect(selectedFiles) {
         const filesArray = Array.isArray(selectedFiles) ? selectedFiles : [selectedFiles];
-        const isFirst = data.documents.length === 0;
-        const newDocs = filesArray.map((file, index) => ({
+        const newDocs = filesArray.map(file => ({
             id: `doc_${Date.now()}_${Math.random()}`,
             media_file_id: file.id,
             file: null,
             name: file.name.replace(/\.[^.]+$/, ''),
             description: '',
-            category: (isFirst && index === 0) ? 'agreement' : 'general',
+            category: 'general',
             file_type: file.file_type || file.mime_type || 'document',
             file_size: file.file_size,
         }));
@@ -188,23 +186,15 @@ export default function WizardStep2({ data, update }) {
 
                                     {/* Document Customizer fields */}
                                     <div className="space-y-2">
-                                        <div className="flex bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl">
-                                            {['general', 'agreement', 'kyc'].map(cat => (
-                                                <button
-                                                    key={cat}
-                                                    type="button"
-                                                    onClick={() => updateDoc(doc.id, 'category', cat)}
-                                                    className={cn(
-                                                        "flex-1 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-all capitalize",
-                                                        (doc.category || 'general') === cat 
-                                                            ? "bg-white dark:bg-slate-800 text-amber-600 shadow-sm"
-                                                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
-                                                    )}
-                                                >
-                                                    {cat === 'general' ? 'General' : cat === 'agreement' ? 'Agreement' : 'KYC'}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <select
+                                            value={doc.category || 'general'}
+                                            onChange={e => updateDoc(doc.id, 'category', e.target.value)}
+                                            className="w-full px-3 py-2 text-xs bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-800 dark:text-slate-200 font-semibold"
+                                        >
+                                            <option value="general">General Document</option>
+                                            <option value="agreement">Project Agreement</option>
+                                            <option value="kyc">KYC Document</option>
+                                        </select>
                                         <input
                                             type="text"
                                             value={doc.name}

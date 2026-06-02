@@ -14,6 +14,10 @@ class MediaController extends Controller
     public function index(Request $request)
     {
         $folderId = $request->get('folder_id');
+        if (empty($folderId) || $folderId === 'null' || $folderId === 'undefined') {
+            $folderId = null;
+        }
+
         $type = $request->get('type');
         $search = $request->get('search');
 
@@ -131,6 +135,25 @@ class MediaController extends Controller
                 $originalName = $file->getClientOriginalName();
                 $extension = $file->getClientOriginalExtension();
                 
+                // Reject duplicate files in the same folder
+                $folderId = $request->input('folder_id');
+                if (empty($folderId) || $folderId === 'null' || $folderId === 'undefined') {
+                    $folderId = null;
+                }
+
+                $exists = MediaFile::where('folder_id', $folderId)
+                    ->where(function ($query) use ($originalName) {
+                        $query->where('name', $originalName)
+                            ->orWhere('original_name', $originalName);
+                    })
+                    ->exists();
+
+                if ($exists) {
+                    return response()->json([
+                        'message' => "A file named '{$originalName}' already exists in this folder."
+                    ], 422);
+                }
+                
                 // Safe name
                 $safeName = Str::slug(pathinfo($originalName, PATHINFO_FILENAME));
                 $filename = time() . '_' . rand(100, 999) . '_' . $safeName . '.' . $extension;
@@ -179,7 +202,7 @@ class MediaController extends Controller
                     'mime_type' => $mimeType,
                     'file_type' => $fileType,
                     'file_size' => $fileSize,
-                    'folder_id' => $request->input('folder_id'),
+                    'folder_id' => $folderId,
                     'uploaded_by' => Auth::id(),
                 ]);
 

@@ -65,7 +65,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
     // UI State
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [selectedType, setSelectedType] = useState(filters.type || '');
-    
+
     // File / Selection States
     const [selectedFile, setSelectedFile] = useState(null);
     const [showDetailsPanel, setShowDetailsPanel] = useState(false);
@@ -166,7 +166,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
     const handleItemContextMenu = (e, type, item) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Prevent rendering menu outside viewport bounds
         const menuWidth = 190;
         const menuHeight = 240;
@@ -249,7 +249,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
     // File selection queue additions
     const handleFileSelectionChange = (e) => {
         if (!e.target.files) return;
-        
+
         const selectedFiles = Array.from(e.target.files);
         const newUploads = [];
         let hasLargeFiles = false;
@@ -260,6 +260,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                 hasLargeFiles = true;
                 return; // Skip this file
             }
+
             newUploads.push({
                 id: Math.random().toString(36).substring(7) + Date.now(),
                 file: f,
@@ -277,7 +278,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
             setShowUploadWidget(true);
             setIsWidgetMinimized(false);
         }
-        
+
         // Reset file input value to allow selecting same files again
         if (e.target) {
             e.target.value = null;
@@ -295,10 +296,10 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
         if (!item) return;
 
         setIsActionLoading(true);
-        
+
         // Update status to uploading
         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading', progress: 0 } : f));
-        
+
         const formData = new FormData();
         formData.append('files[]', item.file);
         if (current_folder_id) {
@@ -307,23 +308,36 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
         try {
             await axios.post(route('media.upload'), formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+                headers: { 
+                    'Content-Type': 'multipart/form-data',
+                    'Accept': 'application/json'
+                },
                 onUploadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                     setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, progress: percentCompleted } : f));
                 }
             });
-            
+
             // Update status to success
             setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'success', progress: 100 } : f));
             triggerToast('File uploaded successfully');
         } catch (err) {
             // Update status to error
-            const errorMessage = err.response?.data?.message || err.message || 'Upload failed';
+            let errorMessage = 'Upload failed';
+            if (err.response?.data) {
+                if (err.response.data.errors) {
+                    const firstErrorKey = Object.keys(err.response.data.errors)[0];
+                    errorMessage = err.response.data.errors[firstErrorKey][0];
+                } else if (err.response.data.message) {
+                    errorMessage = err.response.data.message;
+                }
+            } else {
+                errorMessage = err.message || 'Upload failed';
+            }
             setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', errorMsg: errorMessage } : f));
             triggerToast('Failed to retry upload', 'error');
         }
-        
+
         setIsActionLoading(false);
         router.reload();
     };
@@ -331,17 +345,17 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
     // Upload Files submit (Queueing one by one)
     const handleFileUploadSubmit = async (e) => {
         e?.preventDefault();
-        
+
         const pendingFiles = uploadFiles.filter(f => f.status === 'pending' || f.status === 'error');
         if (pendingFiles.length === 0) return;
-        
+
         setIsActionLoading(true);
         let hasError = false;
 
         for (const item of pendingFiles) {
             // Update status to uploading
             setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading', progress: 0 } : f));
-            
+
             const formData = new FormData();
             formData.append('files[]', item.file);
             if (current_folder_id) {
@@ -350,19 +364,32 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
             try {
                 await axios.post(route('media.upload'), formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
+                    headers: { 
+                        'Content-Type': 'multipart/form-data',
+                        'Accept': 'application/json'
+                    },
                     onUploadProgress: (progressEvent) => {
                         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                         setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, progress: percentCompleted } : f));
                     }
                 });
-                
+
                 // Update status to success
                 setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'success', progress: 100 } : f));
             } catch (err) {
                 hasError = true;
                 // Update status to error
-                const errorMessage = err.response?.data?.message || err.message || 'Upload failed';
+                let errorMessage = 'Upload failed';
+                if (err.response?.data) {
+                    if (err.response.data.errors) {
+                        const firstErrorKey = Object.keys(err.response.data.errors)[0];
+                        errorMessage = err.response.data.errors[firstErrorKey][0];
+                    } else if (err.response.data.message) {
+                        errorMessage = err.response.data.message;
+                    }
+                } else {
+                    errorMessage = err.message || 'Upload failed';
+                }
                 setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', errorMsg: errorMessage } : f));
             }
         }
@@ -372,7 +399,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
         } else {
             triggerToast('All files uploaded successfully');
         }
-        
+
         setIsActionLoading(false);
         router.reload();
     };
@@ -391,8 +418,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
         setIsActionLoading(true);
 
         const isFile = renameTarget.type === 'file';
-        const url = isFile 
-            ? route('media.file.rename', { file: renameTarget.item.id }) 
+        const url = isFile
+            ? route('media.file.rename', { file: renameTarget.item.id })
             : route('media.folder.rename', { folder: renameTarget.item.id });
 
         try {
@@ -420,8 +447,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
         setIsActionLoading(true);
 
         const isFile = deleteTarget.type === 'file';
-        const url = isFile 
-            ? route('media.file.delete', { file: deleteTarget.item.id }) 
+        const url = isFile
+            ? route('media.file.delete', { file: deleteTarget.item.id })
             : route('media.folder.delete', { folder: deleteTarget.item.id });
 
         try {
@@ -472,7 +499,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
             {/* Success/Error Toast notification */}
             {toastMessage && (
-                <Paper 
+                <Paper
                     elevation={3}
                     className={cn(
                         "fixed bottom-6 right-6 z-50 max-w-sm rounded-2xl p-4 border flex gap-3 animate-slide-up",
@@ -495,7 +522,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
             {/* JCMS Drive Workspace Grid */}
             <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-170px)] overflow-hidden">
-                
+
                 {/* 1. Left Drive Navigation Panel */}
                 <div className="w-full lg:w-60 shrink-0 flex flex-col justify-between lg:h-full pb-2">
                     <div className="space-y-6">
@@ -510,8 +537,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 variant="contained"
                                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg hover:-translate-y-0.5 border-0 shadow-md"
                                 startIcon={<Plus size={16} className="text-white font-bold" />}
-                                style={{ 
-                                    background: 'linear-gradient(135deg, #f59e0b, #dc2626)', 
+                                style={{
+                                    background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
                                     boxShadow: '0 4px 14px rgba(245,158,11,0.3)',
                                     borderRadius: '12px',
                                     textTransform: 'none',
@@ -524,40 +551,33 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 New
                             </Button>
 
-                            {/* "+ New" Dropdown lists with MUI elements wrapped in MenuList */}
+                            {/* "+ New" Dropdown menu utilizing standard HTML elements with high-end glass styling */}
                             {showNewDropdown && (
-                                <Paper 
-                                    elevation={3}
-                                    className="absolute left-0 mt-2 z-30 w-48 bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl py-0.5 animate-scale-up"
+                                <div
+                                    className="absolute left-0 mt-2 z-30 w-48 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl py-1.5 animate-scale-up shadow-xl flex flex-col"
                                 >
-                                    <MenuList>
-                                        <MenuItem
-                                            onClick={() => {
-                                                setShowNewFolderModal(true);
-                                                setShowNewDropdown(false);
-                                            }}
-                                            className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                        >
-                                            <ListItemIcon>
-                                                <FolderPlus size={16} className="text-amber-500" />
-                                            </ListItemIcon>
-                                            <ListItemText primary={<span className="text-xs font-semibold">New folder</span>} />
-                                        </MenuItem>
-                                        <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                                        <MenuItem
-                                            onClick={() => {
-                                                fileInputRef.current.click();
-                                                setShowNewDropdown(false);
-                                            }}
-                                            className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                        >
-                                            <ListItemIcon>
-                                                <UploadCloud size={16} className="text-amber-500" />
-                                            </ListItemIcon>
-                                            <ListItemText primary={<span className="text-xs font-semibold">File upload</span>} />
-                                        </MenuItem>
-                                    </MenuList>
-                                </Paper>
+                                    <button
+                                        onClick={() => {
+                                            setShowNewFolderModal(true);
+                                            setShowNewDropdown(false);
+                                        }}
+                                        className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                                    >
+                                        <FolderPlus size={15} className="text-amber-500 shrink-0" />
+                                        <span className="text-xs font-semibold">New folder</span>
+                                    </button>
+                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-1" />
+                                    <button
+                                        onClick={() => {
+                                            fileInputRef.current.click();
+                                            setShowNewDropdown(false);
+                                        }}
+                                        className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                                    >
+                                        <UploadCloud size={15} className="text-amber-500 shrink-0" />
+                                        <span className="text-xs font-semibold">File upload</span>
+                                    </button>
+                                </div>
                             )}
                         </div>
 
@@ -612,24 +632,17 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
                     {/* Storage info card with soft borders */}
                     <div className="hidden lg:block">
-                        <Card 
-                            variant="outlined"
-                            style={{ 
-                                borderRadius: '16px', 
-                                borderColor: 'rgba(226, 232, 240, 0.8)', 
-                                backgroundColor: 'rgba(248, 250, 252, 0.5)' 
-                            }}
+                        <div
+                            className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/80 rounded-2xl p-4"
                         >
-                            <CardContent className="p-4">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    <Info size={14} className="text-amber-500" />
-                                    <Typography variant="caption" className="font-bold text-slate-700 dark:text-slate-300">JCMS Drive Storage</Typography>
-                                </div>
-                                <Typography variant="caption" className="text-[10px] text-slate-405 leading-relaxed block">
-                                    Virtual folders let you organize site blue-prints and invoices securely. Right-click folders or files for context control menus.
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <Info size={14} className="text-amber-500" />
+                                <span className="text-xs font-bold text-slate-750 dark:text-slate-200">JCMS Drive Storage</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed m-0 font-medium">
+                                Virtual folders let you organize site blue-prints and invoices securely. Right-click folders or files for context control menus.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -637,7 +650,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                 <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-3xl flex flex-col overflow-hidden shadow-sm h-full transition-all duration-300 ease-in-out">
                     {/* JCMS Drive Centered Search Bar Header */}
                     <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-3 gap-4 shrink-0">
-                        
+
                         {/* Title and breadcrumbs */}
                         <div className="flex items-center gap-2 shrink-0">
                             <Typography className="text-xs font-bold text-slate-400 tracking-wider">JCMS Drive</Typography>
@@ -665,7 +678,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 onClick={() => setShowDetailsPanel(!showDetailsPanel)}
                                 className={cn(
                                     "p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors",
-                                    showDetailsPanel ? "bg-slate-100 dark:bg-slate-850" : ""
+                                    showDetailsPanel ? "bg-slate-100 dark:bg-slate-800" : ""
                                 )}
                                 title="Toggle details inspector"
                             >
@@ -725,43 +738,38 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                 : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                                         )}>
                                             {folders.map(folder => (
-                                                <Card 
+                                                <div
                                                     key={folder.id}
-                                                    variant="outlined"
-                                                    style={{ 
-                                                        borderRadius: '12px', 
-                                                        borderColor: 'rgba(226, 232, 240, 0.8)',
-                                                        backgroundColor: 'white'
+                                                    style={{
+                                                        borderRadius: '12px',
+                                                        borderWidth: '1px'
                                                     }}
-                                                    className="group hover:shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all duration-300 transform hover:scale-[1.01] ease-in-out"
+                                                    className="group bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800/80 hover:shadow-sm hover:border-slate-350 dark:hover:border-slate-700 transition-all duration-300 transform hover:scale-[1.01] ease-in-out cursor-pointer overflow-hidden"
+                                                    onClick={() => navigateToFolder(folder.id)}
+                                                    onDoubleClick={() => navigateToFolder(folder.id)}
                                                     onContextMenu={(e) => handleItemContextMenu(e, 'folder', folder)}
                                                 >
-                                                    <CardActionArea 
-                                                        onClick={() => navigateToFolder(folder.id)}
-                                                        onDoubleClick={() => navigateToFolder(folder.id)}
-                                                    >
-                                                        <div className="p-3.5 flex items-center justify-between gap-3">
-                                                            <div className="flex items-center gap-3 min-w-0">
-                                                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                                                                    <Folder size={18} />
-                                                                </div>
-                                                                <Typography className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate pr-2">
-                                                                    {folder.name}
-                                                                </Typography>
+                                                    <div className="p-3.5 flex items-center justify-between gap-3 select-none">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                                                                <Folder size={18} />
                                                             </div>
-
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleItemContextMenu(e, 'folder', folder);
-                                                                }}
-                                                                className="p-1 rounded-lg text-slate-400 hover:bg-slate-105 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors shrink-0"
-                                                            >
-                                                                <MoreVertical size={14} />
-                                                            </button>
+                                                            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate pr-2">
+                                                                {folder.name}
+                                                            </p>
                                                         </div>
-                                                    </CardActionArea>
-                                                </Card>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleItemContextMenu(e, 'folder', folder);
+                                                            }}
+                                                            className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors shrink-0 border-0 bg-transparent"
+                                                        >
+                                                            <MoreVertical size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -770,11 +778,11 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 {/* B. Files Grid list using MUI Cards with dynamic row-reduction transitions */}
                                 {files.length > 0 && (
                                     <div>
-                                        <Typography className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Files</Typography>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Files</p>
                                         <div className={cn(
                                             "grid gap-4 transition-all duration-300 ease-in-out",
-                                            showDetailsPanel 
-                                                ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4" 
+                                            showDetailsPanel
+                                                ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                                                 : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5"
                                         )}>
                                             {files.map(file => {
@@ -783,17 +791,18 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                 const isSelected = selectedFile?.id === file.id;
 
                                                 return (
-                                                    <Card
+                                                    <div
                                                         key={file.id}
-                                                        variant="outlined"
-                                                        style={{ 
-                                                            borderRadius: '16px', 
-                                                            borderColor: isSelected ? '#d97706' : 'rgba(226, 232, 240, 0.8)',
-                                                            backgroundColor: 'white'
+                                                        style={{
+                                                            borderRadius: '16px',
+                                                            borderWidth: '1px',
+                                                            borderColor: isSelected ? '#d97706' : undefined
                                                         }}
                                                         className={cn(
-                                                            "group flex flex-col justify-between h-44 cursor-pointer relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01] ease-in-out",
-                                                            isSelected ? "ring-2 ring-amber-500/10" : "hover:border-slate-350 dark:hover:border-slate-700"
+                                                            "group bg-white dark:bg-slate-900 flex flex-col justify-between h-44 cursor-pointer relative overflow-hidden transition-all duration-300 transform hover:scale-[1.01] ease-in-out",
+                                                            isSelected 
+                                                                ? "ring-2 ring-amber-500/10 border-amber-500" 
+                                                                : "border-slate-200 dark:border-slate-800/80 hover:border-slate-350 dark:hover:border-slate-700"
                                                         )}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -805,7 +814,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                         onContextMenu={(e) => handleItemContextMenu(e, 'file', file)}
                                                     >
                                                         {/* Thumbnail Box */}
-                                                        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-955/40 p-2 relative overflow-hidden select-none border-b border-slate-100 dark:border-slate-800">
+                                                        <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-900/40 p-2 relative overflow-hidden select-none border-b border-slate-100 dark:border-slate-800">
                                                             {file.file_type === 'image' ? (
                                                                 <img
                                                                     src={file.file_path}
@@ -819,30 +828,30 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                             )}
                                                         </div>
 
-                                                        {/* Details block inside CardContent with REDUCED text size [10px] */}
-                                                        <CardContent className="p-3 pt-2 pb-2 flex flex-col justify-between select-none">
+                                                        {/* Details block with REDUCED text size [9px] */}
+                                                        <div className="p-3 pt-2 pb-2 flex flex-col justify-between select-none">
                                                             <div className="min-w-0 flex items-start justify-between gap-1 w-full">
-                                                                <Typography 
-                                                                    className="text-[10px] font-bold text-slate-800 dark:text-slate-200 line-clamp-2 h-[24px] leading-[12px] flex-1 pr-1 break-all" 
+                                                                <p
+                                                                    className="text-[9px] font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 h-[22px] leading-[11px] flex-1 pr-1 break-all"
                                                                     title={file.name}
                                                                 >
                                                                     {file.name}
-                                                                </Typography>
+                                                                </p>
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         handleItemContextMenu(e, 'file', file);
                                                                     }}
-                                                                    className="p-0.5 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-655 transition-colors shrink-0"
+                                                                    className="p-0.5 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors shrink-0 border-0 bg-transparent"
                                                                 >
                                                                     <MoreVertical size={13} />
                                                                 </button>
                                                             </div>
-                                                            <Typography variant="caption" className="text-[9px] text-slate-400 font-semibold font-mono block mt-0.5">
+                                                            <span className="text-[9px] text-slate-400 font-semibold font-mono block mt-0.5">
                                                                 {formatBytes(file.file_size)}
-                                                            </Typography>
-                                                        </CardContent>
-                                                    </Card>
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 );
                                             })}
                                         </div>
@@ -854,47 +863,43 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                 </div>
 
                 {/* 3. Right Details View Panel (Resized with standard width contraction layout transitions) */}
-                <div 
+                <div
                     className={cn(
                         "transition-all duration-300 ease-in-out overflow-hidden shrink-0 flex",
-                        showDetailsPanel 
-                            ? "w-full lg:w-72 opacity-100 transform translate-x-0" 
+                        showDetailsPanel
+                            ? "w-full lg:w-72 opacity-100 transform translate-x-0"
                             : "w-0 opacity-0 transform translate-x-8 pointer-events-none"
                     )}
                 >
-                    <Card
-                        variant="outlined"
-                        style={{ 
-                            borderRadius: '24px', 
-                            borderColor: 'rgba(226, 232, 240, 0.8)',
-                            backgroundColor: 'white',
-                            height: '100%',
-                            width: '100%'
+                    <div
+                        style={{
+                            borderRadius: '24px',
+                            borderWidth: '1px'
                         }}
-                        className="p-5 flex flex-col justify-between shadow-sm lg:h-full"
+                        className="p-5 flex flex-col justify-between shadow-sm lg:h-full w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800/80"
                     >
                         {selectedFile ? (
                             <div className="flex flex-col h-full justify-between overflow-hidden">
                                 <div className="space-y-4 flex-1 overflow-y-auto no-scrollbar pb-3 select-none">
-                                    
+
                                     {/* Header */}
                                     <div className="flex items-center justify-between pb-1">
                                         <div className="flex items-center gap-1.5">
                                             <Info size={14} className="text-amber-500" />
-                                            <Typography className="font-bold text-xs text-slate-800 dark:text-slate-200">File Information</Typography>
+                                            <p className="font-bold text-xs text-slate-800 dark:text-slate-200 m-0">File Information</p>
                                         </div>
                                         <IconButton
                                             size="small"
                                             onClick={() => setShowDetailsPanel(false)}
-                                            className="text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850"
+                                            className="text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
                                         >
                                             <X size={15} />
                                         </IconButton>
                                     </div>
-                                    <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
+                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-3" />
 
                                     {/* Visual File Preview Box */}
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-955/40 p-4 flex items-center justify-center relative overflow-hidden aspect-video shadow-inner">
+                                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4 flex items-center justify-center relative overflow-hidden aspect-video shadow-inner">
                                         {selectedFile.file_type === 'image' ? (
                                             <img
                                                 src={selectedFile.file_path}
@@ -910,60 +915,60 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
                                     {/* Core Filename Wrap - REDUCED text size to [10px] */}
                                     <div className="px-1">
-                                        <Typography className="font-bold text-[10px] text-slate-800 dark:text-slate-200 break-all leading-normal">
+                                        <p className="font-bold text-[10px] text-slate-800 dark:text-slate-200 break-all leading-normal m-0">
                                             {selectedFile.name}
-                                        </Typography>
+                                        </p>
                                     </div>
 
-                                    <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
+                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-3" />
 
-                                    {/* Detailed Metadata fields redesigned using MUI Lists */}
-                                    <List className="p-0 space-y-0.5">
-                                        <ListItem className="px-1 py-1 flex items-center justify-between text-[11px]">
-                                            <div className="flex items-center gap-2 text-slate-400">
+                                    {/* Detailed Metadata fields using standard HTML divs */}
+                                    <div className="space-y-3.5">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                                 <HardDrive size={13} />
                                                 <span>File Size</span>
                                             </div>
-                                            <Typography variant="body2" className="text-xs font-bold text-slate-700 dark:text-slate-355">
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                                 {formatBytes(selectedFile.file_size)}
-                                            </Typography>
-                                        </ListItem>
-                                        <Divider variant="middle" style={{ borderColor: 'rgba(226, 232, 240, 0.5)', margin: '4px 0' }} />
-                                        
-                                        <ListItem className="px-1 py-1 flex items-center justify-between text-[11px]">
-                                            <div className="flex items-center gap-2 text-slate-400">
+                                            </span>
+                                        </div>
+                                        <div className="border-t border-slate-100/60 dark:border-slate-800/50" />
+
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                                 <Tag size={13} />
                                                 <span>Drive Category</span>
                                             </div>
-                                            <Typography variant="body2" className="text-[10px] font-bold text-slate-700 dark:text-slate-350 uppercase font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase font-mono bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded">
                                                 {selectedFile.file_type}
-                                            </Typography>
-                                        </ListItem>
-                                        <Divider variant="middle" style={{ borderColor: 'rgba(226, 232, 240, 0.5)', margin: '4px 0' }} />
+                                            </span>
+                                        </div>
+                                        <div className="border-t border-slate-100/60 dark:border-slate-800/50" />
 
-                                        <ListItem className="px-1 py-1 flex items-center justify-between text-[11px]">
-                                            <div className="flex items-center gap-2 text-slate-400">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                                 <Calendar size={13} />
                                                 <span>Uploaded At</span>
                                             </div>
-                                            <Typography variant="body2" className="text-[10px] font-bold text-slate-750">
+                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
                                                 {selectedFile.created_at}
-                                            </Typography>
-                                        </ListItem>
-                                        <Divider variant="middle" style={{ borderColor: 'rgba(226, 232, 240, 0.5)', margin: '4px 0' }} />
+                                            </span>
+                                        </div>
+                                        <div className="border-t border-slate-100/60 dark:border-slate-800/50" />
 
-                                        <ListItem className="px-1 py-1 flex items-center justify-between text-[11px]">
-                                            <div className="flex items-center gap-2 text-slate-400">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                                                 <Database size={13} />
                                                 <span>Mime Type</span>
                                             </div>
-                                            <Typography variant="body2" className="text-[9px] font-semibold text-slate-500 max-w-[140px] truncate" title={selectedFile.mime_type}>
+                                            <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 max-w-[140px] truncate" title={selectedFile.mime_type}>
                                                 {selectedFile.mime_type}
-                                            </Typography>
-                                        </ListItem>
-                                    </List>
-                                    
-                                    <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-slate-100 dark:border-slate-800/80 my-3" />
                                 </div>
 
                                 {/* Details quick actions */}
@@ -974,11 +979,10 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                         download={selectedFile.name}
                                         variant="contained"
                                         fullWidth
-                                        className="flex items-center justify-center gap-2 text-white bg-slate-900 hover:bg-slate-800 rounded-xl text-xs font-bold transition-all py-2.5 normal-case border-0"
-                                        style={{ 
-                                            textTransform: 'none', 
-                                            borderRadius: '12px', 
-                                            backgroundColor: '#0f172a',
+                                        className="flex items-center justify-center gap-2 text-white bg-slate-900 hover:bg-slate-800 dark:bg-amber-600 dark:hover:bg-amber-700 rounded-xl text-xs font-bold transition-all py-2.5 normal-case border-0"
+                                        style={{
+                                            textTransform: 'none',
+                                            borderRadius: '12px',
                                             color: 'white',
                                             display: 'inline-flex',
                                             fontSize: '12px',
@@ -1012,141 +1016,120 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 </Typography>
                             </div>
                         )}
-                    </Card>
+                    </div>
                 </div>
             </div>
 
             {/* ── 4. JCMS Drive Custom Floating Context Menu utilizing MUI Paper & MenuList ── */}
             {contextMenu && (
-                <Paper
-                    elevation={4}
-                    style={{ 
-                        top: contextMenu.y, 
+                <div
+                    style={{
+                        top: contextMenu.y,
                         left: contextMenu.x,
                         borderRadius: '16px',
-                        borderColor: 'rgba(226, 232, 240, 0.8)',
                         borderWidth: '1px'
                     }}
-                    className="fixed z-50 bg-white dark:bg-slate-900 py-0.5 min-w-[190px] animate-scale-up overflow-hidden"
+                    className="fixed z-50 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800/80 py-1.5 min-w-[190px] animate-scale-up overflow-hidden shadow-xl flex flex-col"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <MenuList>
-                        {contextMenu.type === 'folder' ? (
-                            <>
-                                <MenuItem
-                                    onClick={() => {
-                                        navigateToFolder(contextMenu.item.id);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <FolderOpen size={14} className="text-amber-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">Open folder</span>} />
-                                </MenuItem>
-                                <MenuItem
-                                    onClick={() => {
-                                        startRename('folder', contextMenu.item);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <Edit3 size={14} className="text-blue-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">Rename folder</span>} />
-                                </MenuItem>
-                                <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                                <MenuItem
-                                    onClick={() => {
-                                        startDelete('folder', contextMenu.item);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-red-655 hover:bg-red-50 dark:hover:bg-red-955/20"
-                                >
-                                    <ListItemIcon>
-                                        <Trash2 size={14} className="text-red-550" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-bold text-red-600">Delete folder</span>} />
-                                </MenuItem>
-                            </>
-                        ) : (
-                            <>
-                                <MenuItem
-                                    onClick={() => {
-                                        setSelectedFile(contextMenu.item);
-                                        setShowDetailsPanel(true);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <Info size={14} className="text-amber-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">View details</span>} />
-                                </MenuItem>
-                                <MenuItem
-                                    onClick={() => {
-                                        window.open(contextMenu.item.file_path, '_blank');
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <ExternalLink size={14} className="text-emerald-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">Open in tab</span>} />
-                                </MenuItem>
-                                <MenuItem
-                                    onClick={() => {
-                                        copyLinkToClipboard(contextMenu.item.file_path);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <Copy size={14} className="text-cyan-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">Copy link</span>} />
-                                </MenuItem>
-                                <MenuItem
-                                    onClick={() => {
-                                        startRename('file', contextMenu.item);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-slate-700 dark:text-slate-200"
-                                >
-                                    <ListItemIcon>
-                                        <Edit3 size={14} className="text-blue-500" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-semibold">Rename file</span>} />
-                                </MenuItem>
-                                <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                                <MenuItem
-                                    onClick={() => {
-                                        startDelete('file', contextMenu.item);
-                                        setContextMenu(null);
-                                    }}
-                                    className="py-2.5 px-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-955/20"
-                                >
-                                    <ListItemIcon>
-                                        <Trash2 size={14} className="text-red-550" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={<span className="text-xs font-bold text-red-600">Delete file</span>} />
-                                </MenuItem>
-                            </>
-                        )}
-                    </MenuList>
-                </Paper>
+                    {contextMenu.type === 'folder' ? (
+                        <div className="flex flex-col">
+                            <button
+                                onClick={() => {
+                                    navigateToFolder(contextMenu.item.id);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <FolderOpen size={14} className="text-amber-500 shrink-0" />
+                                <span className="text-xs font-semibold">Open folder</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    startRename('folder', contextMenu.item);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Edit3 size={14} className="text-blue-500 shrink-0" />
+                                <span className="text-xs font-semibold">Rename folder</span>
+                            </button>
+                            <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+                            <button
+                                onClick={() => {
+                                    startDelete('folder', contextMenu.item);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Trash2 size={14} className="text-red-550 shrink-0" />
+                                <span className="text-xs font-bold">Delete folder</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col">
+                            <button
+                                onClick={() => {
+                                    setSelectedFile(contextMenu.item);
+                                    setShowDetailsPanel(true);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Info size={14} className="text-amber-500 shrink-0" />
+                                <span className="text-xs font-semibold">View details</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    window.open(contextMenu.item.file_path, '_blank');
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <ExternalLink size={14} className="text-emerald-500 shrink-0" />
+                                <span className="text-xs font-semibold">Open in tab</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    copyLinkToClipboard(contextMenu.item.file_path);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Copy size={14} className="text-cyan-500 shrink-0" />
+                                <span className="text-xs font-semibold">Copy link</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    startRename('file', contextMenu.item);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Edit3 size={14} className="text-blue-500 shrink-0" />
+                                <span className="text-xs font-semibold">Rename file</span>
+                            </button>
+                            <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+                            <button
+                                onClick={() => {
+                                    startDelete('file', contextMenu.item);
+                                    setContextMenu(null);
+                                }}
+                                className="py-2.5 px-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 w-full text-left border-0 bg-transparent cursor-pointer"
+                            >
+                                <Trash2 size={14} className="text-red-550 shrink-0" />
+                                <span className="text-xs font-bold">Delete file</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* ── 5. ADVANCED UPLOAD MANAGER WIDGET ── */}
             {showUploadWidget && (
-                <Paper
-                    elevation={24}
-                    className="fixed bottom-6 right-6 z-50 w-[420px] bg-white dark:bg-slate-900 border-none rounded-2xl overflow-hidden animate-slide-up flex flex-col transition-all duration-300 shadow-2xl"
+                <div
                     style={{ maxHeight: isWidgetMinimized ? 'auto' : '550px' }}
+                    className="fixed bottom-6 right-6 z-50 w-[420px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden animate-slide-up flex flex-col transition-all duration-300 shadow-2xl"
                 >
                     {/* Widget Header - Minimalist */}
                     <div className="px-5 py-4 flex items-center justify-between select-none bg-slate-900 text-white">
@@ -1165,7 +1148,7 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 </Typography>
                             </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             <IconButton
                                 size="small"
@@ -1231,14 +1214,14 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                                     <Typography variant="caption" className="text-slate-500 mt-0.5 flex items-center gap-2">
                                                                         <span>{formatBytes(file.size)}</span>
                                                                         <span>•</span>
-                                                                        {item.status === 'success' && <span className="text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12}/> Uploaded</span>}
-                                                                        {item.status === 'error' && <span className="text-red-500 flex items-center gap-1"><AlertCircle size={12}/> Failed</span>}
+                                                                        {item.status === 'success' && <span className="text-emerald-500 flex items-center gap-1"><CheckCircle2 size={12} /> Uploaded</span>}
+                                                                        {item.status === 'error' && <span className="text-red-500 flex items-center gap-1"><AlertCircle size={12} /> Failed</span>}
                                                                         {item.status === 'pending' && <span>Pending</span>}
                                                                         {item.status === 'uploading' && <span className="text-amber-600">Uploading {item.progress}%</span>}
                                                                     </Typography>
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             {/* Action / Loader */}
                                                             <div className="shrink-0 flex items-center gap-1">
                                                                 {item.status === 'uploading' ? (
@@ -1271,11 +1254,11 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        
+
                                                         {/* Progress Bar Container */}
                                                         {item.status === 'uploading' && (
                                                             <div className="h-1 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                                <div 
+                                                                <div
                                                                     className="h-full bg-amber-500 transition-all duration-300 ease-out"
                                                                     style={{ width: `${item.progress}%` }}
                                                                 />
@@ -1309,8 +1292,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                             </div>
 
                             {/* Action Row */}
-                            <div className="px-5 py-4 bg-slate-50 dark:bg-slate-850 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
-                                <Button 
+                            <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                                <Button
                                     onClick={() => {
                                         setUploadFiles([]);
                                         setShowUploadWidget(false);
@@ -1321,13 +1304,13 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                                 >
                                     Clear Queue
                                 </Button>
-                                <Button 
+                                <Button
                                     onClick={handleFileUploadSubmit}
-                                    variant="contained" 
+                                    variant="contained"
                                     disabled={uploadFiles.filter(f => f.status === 'pending' || f.status === 'error').length === 0 || isActionLoading}
-                                    style={{ 
-                                        textTransform: 'none', 
-                                        borderRadius: '8px', 
+                                    style={{
+                                        textTransform: 'none',
+                                        borderRadius: '8px',
                                         background: '#f59e0b', // Amber 500
                                         color: 'white',
                                         boxShadow: 'none',
@@ -1340,14 +1323,14 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                             </div>
                         </div>
                     )}
-                </Paper>
+                </div>
             )}
 
             {/* ── Standard MUI Modals & Dialogs with High-End Blurry Backdrops & Standard Wizard Design ── */}
 
             {/* 1. New Folder Dialog */}
-            <Dialog 
-                open={showNewFolderModal} 
+            <Dialog
+                open={showNewFolderModal}
                 onClose={() => setShowNewFolderModal(false)}
                 slotProps={blurBackdropSlotProps}
                 PaperProps={{
@@ -1395,25 +1378,25 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                             />
                         </Card>
                     </DialogContent>
-                    
+
                     <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                    
+
                     <DialogActions className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/50 shrink-0 gap-1">
-                        <Button 
+                        <Button
                             onClick={() => setShowNewFolderModal(false)}
                             style={{ textTransform: 'none', borderRadius: '10px', color: '#64748b', fontSize: '12px', fontWeight: 'semibold' }}
                         >
                             Cancel
                         </Button>
-                        <Button 
-                            type="submit" 
-                            variant="contained" 
+                        <Button
+                            type="submit"
+                            variant="contained"
                             disabled={isActionLoading}
-                            style={{ 
-                                textTransform: 'none', 
-                                borderRadius: '10px', 
-                                background: 'linear-gradient(135deg, #f59e0b, #dc2626)', 
-                                fontSize: '12px', 
+                            style={{
+                                textTransform: 'none',
+                                borderRadius: '10px',
+                                background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
+                                fontSize: '12px',
                                 color: 'white',
                                 fontWeight: 'bold',
                                 boxShadow: '0 4px 10px rgba(245,158,11,0.2)'
@@ -1428,8 +1411,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
             </Dialog>
 
             {/* 2. Rename Dialog */}
-            <Dialog 
-                open={showRenameModal} 
+            <Dialog
+                open={showRenameModal}
                 onClose={() => setShowRenameModal(false)}
                 slotProps={blurBackdropSlotProps}
                 PaperProps={{
@@ -1476,25 +1459,25 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                             />
                         </Card>
                     </DialogContent>
-                    
+
                     <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                    
+
                     <DialogActions className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/50 shrink-0 gap-1">
-                        <Button 
+                        <Button
                             onClick={() => setShowRenameModal(false)}
                             style={{ textTransform: 'none', borderRadius: '10px', color: '#64748b', fontSize: '12px', fontWeight: 'semibold' }}
                         >
                             Cancel
                         </Button>
-                        <Button 
-                            type="submit" 
-                            variant="contained" 
+                        <Button
+                            type="submit"
+                            variant="contained"
                             disabled={isActionLoading}
-                            style={{ 
-                                textTransform: 'none', 
-                                borderRadius: '10px', 
-                                background: 'linear-gradient(135deg, #f59e0b, #dc2626)', 
-                                fontSize: '12px', 
+                            style={{
+                                textTransform: 'none',
+                                borderRadius: '10px',
+                                background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
+                                fontSize: '12px',
                                 color: 'white',
                                 fontWeight: 'bold',
                                 boxShadow: '0 4px 10px rgba(245,158,11,0.2)'
@@ -1509,8 +1492,8 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
             </Dialog>
 
             {/* 3. Delete Confirm Dialog */}
-            <Dialog 
-                open={showDeleteConfirm} 
+            <Dialog
+                open={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 slotProps={blurBackdropSlotProps}
                 PaperProps={{
@@ -1544,26 +1527,26 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
                         Are you absolutely sure?
                     </Typography>
                     <Typography variant="body2" className="text-xs text-slate-400 mt-2 leading-relaxed">
-                        You are deleting <span className="font-bold text-slate-700 dark:text-slate-300 break-all">'{deleteTarget?.item.name}'</span>. 
-                        {deleteTarget?.type === 'folder' 
-                            ? ' This will recursively delete all nested virtual folders and actual uploaded files inside it.' 
+                        You are deleting <span className="font-bold text-slate-700 dark:text-slate-300 break-all">'{deleteTarget?.item.name}'</span>.
+                        {deleteTarget?.type === 'folder'
+                            ? ' This will recursively delete all nested virtual folders and actual uploaded files inside it.'
                             : ' This operation is irreversible and files cannot be restored.'}
                     </Typography>
                 </DialogContent>
-                
+
                 <Divider style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }} />
-                
+
                 <DialogActions className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/50 shrink-0 gap-2 justify-center">
-                    <Button 
+                    <Button
                         onClick={() => setShowDeleteConfirm(false)}
                         variant="outlined"
                         style={{ textTransform: 'none', borderRadius: '10px', color: '#64748b', borderColor: '#cbd5e1', fontSize: '12px', fontWeight: 'semibold', flex: 1 }}
                     >
                         Cancel
                     </Button>
-                    <Button 
+                    <Button
                         onClick={handleDelete}
-                        variant="contained" 
+                        variant="contained"
                         color="error"
                         disabled={isActionLoading}
                         style={{ textTransform: 'none', borderRadius: '10px', backgroundColor: '#dc2626', fontSize: '12px', color: 'white', fontWeight: 'bold', flex: 1 }}
