@@ -14,8 +14,10 @@ import {
     ChevronDown,
     Shield,
     UserCircle2,
+    FolderOpen,
 } from 'lucide-react';
 import JcmsLogo from '@/Components/JcmsLogo';
+import GlobalToast from '@/Components/GlobalToast';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -48,6 +50,12 @@ const navItems = [
         icon: Phone,
         href: '/front-office',
         key: 'front-office',
+    },
+    {
+        label: 'File Manager',
+        icon: FolderOpen,
+        href: '/file-manager',
+        key: 'file-manager',
     },
     {
         label: 'Settings',
@@ -144,6 +152,7 @@ export default function AppLayout({ children, title }) {
 
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+            <GlobalToast />
             {/* Mobile Overlay */}
             {mobileOpen && (
                 <div

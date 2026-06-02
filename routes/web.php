@@ -9,6 +9,7 @@ use App\Http\Controllers\TeamController;
 use App\Http\Controllers\FrontOfficeController;
 use App\Http\Controllers\Settings\AppSettingsController;
 use App\Http\Controllers\Settings\AccessController;
+use App\Http\Controllers\MediaController;
 
 // Auth Routes (Public)
 Route::middleware('guest')->group(function () {
@@ -53,6 +54,15 @@ Route::middleware('auth')->group(function () {
 
     // Front Office
     Route::get('/front-office', [FrontOfficeController::class, 'index'])->name('front-office.index');
+
+    // File Manager / Filesystem
+    Route::get('/file-manager', [MediaController::class, 'index'])->name('media.index');
+    Route::post('/file-manager/folder', [MediaController::class, 'createFolder'])->name('media.folder.create');
+    Route::post('/file-manager/upload', [MediaController::class, 'upload'])->name('media.upload');
+    Route::post('/file-manager/file/{file}/rename', [MediaController::class, 'renameFile'])->name('media.file.rename');
+    Route::post('/file-manager/folder/{folder}/rename', [MediaController::class, 'renameFolder'])->name('media.folder.rename');
+    Route::delete('/file-manager/file/{file}', [MediaController::class, 'destroyFile'])->name('media.file.delete');
+    Route::delete('/file-manager/folder/{folder}', [MediaController::class, 'destroyFolder'])->name('media.folder.delete');
 
     // Settings
     Route::get('/settings/app', [AppSettingsController::class, 'index'])->name('settings.app');

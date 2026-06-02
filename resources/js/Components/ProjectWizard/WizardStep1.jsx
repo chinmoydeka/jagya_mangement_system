@@ -284,7 +284,7 @@ export default function WizardStep1({ data, update }) {
                                 {showResults && clientResults.length > 0 && (
                                     <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
                                         {clientResults.map(c => (
-                                            <button key={c.id} type="button" onClick={() => selectClient(c)}
+                                            <button key={c.id} type="button" onMouseDown={(e) => { e.preventDefault(); selectClient(c); }}
                                                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-500/5 text-left transition-colors">
                                                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden relative">
                                                     <span className="absolute inset-0 flex items-center justify-center">
@@ -331,7 +331,11 @@ export default function WizardStep1({ data, update }) {
                     <textarea value={data.description} onChange={e => update({ description: e.target.value })}
                         rows={3} placeholder="Brief description of the project scope..." className={cn(inputCls, 'resize-none')} />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Agreement Date</label>
+                        <input type="date" value={data.agreement_date} onChange={e => update({ agreement_date: e.target.value })} className={inputCls} />
+                    </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Start Date *</label>
                         <input type="date" value={data.start_date} onChange={e => update({ start_date: e.target.value })} className={inputCls} />

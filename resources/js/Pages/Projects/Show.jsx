@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import axios from 'axios';
 import ProjectOnboarding from '@/Components/ProjectOnboarding';
 import ImageCropperModal from '@/Components/ImageCropperModal';
+import FileSelectorModal from '@/Components/FileSelectorModal';
 import Divider from '@mui/material/Divider';
 
 // Format date without time — only DD/MM/YYYY
@@ -57,6 +58,17 @@ const parseKycDescription = (desc) => {
 
 export default function Show({ project: initialProject }) {
     const [project, setProject] = useState(initialProject);
+    
+    // Dynamic progress based on budget and installments
+    const computedProgress = React.useMemo(() => {
+        const budget = parseFloat(project.budget) || 0;
+        if (budget <= 0) return 0;
+        const totalCollected = (project.payments || [])
+            .filter(p => p.payment_type === 'client_installment')
+            .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        return Math.min(100, Math.round((totalCollected / budget) * 100));
+    }, [project.budget, project.payments]);
+
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedKyc, setSelectedKyc] = useState(null);
     const [selectedAgreement, setSelectedAgreement] = useState(null);
@@ -647,16 +659,17 @@ export default function Show({ project: initialProject }) {
         latitude: project.latitude || '',
         longitude: project.longitude || '',
         budget: project.budget || '',
+        agreement_date: project.agreement_date || '',
         start_date: project.start_date || '',
         deadline: project.deadline || '',
-        completion_percentage: project.completion_percentage || 0,
         team_ids: project.team ? project.team.map(m => m.id) : [],
     });
 
     // Document Modal State
     const [showUploadDocModal, setShowUploadDocModal] = useState(false);
     const [uploadingDoc, setUploadingDoc] = useState(false);
-    const [docForm, setDocForm] = useState({ name: '', description: '', file: null });
+    const [docForm, setDocForm] = useState({ name: '', description: '', file: null, media_file_id: null, category: 'general' });
+    const [showFileSelector, setShowFileSelector] = useState(false);
 
     // Task Modal State
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -868,21 +881,27 @@ export default function Show({ project: initialProject }) {
 
     function handleUploadDocument(e) {
         e.preventDefault();
-        if (!docForm.file) return;
+        if (!docForm.file && !docForm.media_file_id) return;
 
         setUploadingDoc(true);
         const fd = new FormData();
-        fd.append('file', docForm.file);
-        fd.append('name', docForm.name || docForm.file.name);
-        fd.append('description', docForm.description);
+        if (docForm.file) {
+            fd.append('file', docForm.file);
+        }
+        if (docForm.media_file_id) {
+            fd.append('media_file_id', docForm.media_file_id);
+        }
+        fd.append('name', docForm.name || (docForm.file ? docForm.file.name : 'Document'));
+        fd.append('description', docForm.description || '');
+        fd.append('category', docForm.category || 'general');
 
         router.post(`/projects/${project.id}/documents`, fd, {
             onSuccess: () => {
                 setShowUploadDocModal(false);
-                setDocForm({ name: '', description: '', file: null });
+                setDocForm({ name: '', description: '', file: null, media_file_id: null, category: 'general' });
             },
             onError: () => {
-                alert('Failed to upload document.');
+                alert('Failed to save document.');
             },
             onFinish: () => setUploadingDoc(false)
         });
@@ -981,9 +1000,9 @@ export default function Show({ project: initialProject }) {
                                 latitude: project.latitude || '',
                                 longitude: project.longitude || '',
                                 budget: project.budget || '',
+                                agreement_date: project.agreement_date || '',
                                 start_date: project.start_date || '',
                                 deadline: project.deadline || '',
-                                completion_percentage: project.completion_percentage || 0,
                                 team_ids: project.team ? project.team.map(m => m.id) : [],
                             });
                             setEditing(!editing);
@@ -1168,18 +1187,6 @@ export default function Show({ project: initialProject }) {
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Completion Percentage (%)</label>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                max={100}
-                                                value={form.completion_percentage}
-                                                onChange={e => setForm({ ...form, completion_percentage: parseInt(e.target.value) || 0 })}
-                                                className={inputCls}
-                                            />
-                                        </div>
-
-                                        <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Site Address (User Input)</label>
                                             <input
                                                 type="text"
@@ -1298,6 +1305,16 @@ export default function Show({ project: initialProject }) {
                                                  </button>
                                              </div>
                                          </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Agreement Date</label>
+                                            <input
+                                                type="date"
+                                                value={form.agreement_date}
+                                                onChange={e => setForm({ ...form, agreement_date: e.target.value })}
+                                                className={inputCls}
+                                            />
+                                        </div>
 
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Start Date</label>
@@ -1551,6 +1568,10 @@ export default function Show({ project: initialProject }) {
                                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                                                 {project.budget ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(project.budget) : 'Not Specified'}
                                             </p>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Agreement Date</h4>
+                                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{fmtDate(project.agreement_date)}</p>
                                         </div>
                                         <div>
                                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</h4>
@@ -2880,7 +2901,13 @@ export default function Show({ project: initialProject }) {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                setDocForm({ name: '', description: '', file: null, media_file_id: null, category: 'agreement' });
+                                                setShowUploadDocModal(true);
+                                            }}
+                                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                                        >
                                             <Upload size={14} /> Upload Contract
                                         </button>
                                     </div>
@@ -4469,13 +4496,13 @@ export default function Show({ project: initialProject }) {
                                 </div>
                                 <div className="text-right">
                                     <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                                        {project.completion_percentage || 0}%
+                                        {computedProgress}%
                                     </span>
                                 </div>
                             </div>
                             <div className="overflow-hidden h-2.5 text-xs flex rounded-full bg-slate-100 dark:bg-slate-800">
                                 <div
-                                    style={{ width: `${project.completion_percentage || 0}%` }}
+                                    style={{ width: `${computedProgress}%` }}
                                     className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-500"
                                 />
                             </div>
@@ -4802,25 +4829,57 @@ export default function Show({ project: initialProject }) {
             {showUploadDocModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowUploadDocModal(false)} />
-                    <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 animate-scale-up">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Upload Document</h3>
-                            <button type="button" onClick={() => setShowUploadDocModal(false)} className="text-slate-400 hover:text-slate-600">
+                    <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 animate-scale-up border border-slate-200 dark:border-slate-800">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">Attach Document</h3>
+                            <button type="button" onClick={() => setShowUploadDocModal(false)} className="text-slate-400 hover:text-slate-655">
                                 <X size={18} />
                             </button>
                         </div>
                         <form onSubmit={handleUploadDocument} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">File *</label>
-                                <input
-                                    type="file"
-                                    onChange={e => setDocForm({ ...docForm, file: e.target.files[0] })}
-                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
-                                    required
-                                />
+                                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Document File *</label>
+                                {docForm.media_file_id ? (
+                                    <div className="flex items-center justify-between p-3 border border-amber-500/30 bg-amber-500/[0.03] dark:bg-amber-500/10 rounded-xl">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <FileText className="text-amber-500 shrink-0" size={16} />
+                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                                                {docForm.name || "Selected Asset"}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDocForm({ ...docForm, file: null, media_file_id: null, name: '' })}
+                                            className="text-red-500 hover:text-red-700 p-1 hover:bg-slate-150 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <input
+                                            type="file"
+                                            onChange={e => setDocForm({ ...docForm, file: e.target.files[0], media_file_id: null, name: e.target.files[0]?.name || '' })}
+                                            className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                                        />
+                                        <div className="relative flex items-center my-3">
+                                            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+                                            <span className="flex-shrink mx-4 text-slate-400 text-[10px] uppercase font-bold tracking-wider">or</span>
+                                            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowFileSelector(true)}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-dashed border-amber-500/30 hover:border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/[0.02] hover:bg-amber-500/[0.05] rounded-xl text-xs font-bold transition-all"
+                                        >
+                                            <Paperclip size={14} />
+                                            <span>Select from File Manager</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Document Name</label>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Document Label Name</label>
                                 <input
                                     type="text"
                                     placeholder="e.g. Approved Plan Blueprint"
@@ -4828,6 +4887,18 @@ export default function Show({ project: initialProject }) {
                                     onChange={e => setDocForm({ ...docForm, name: e.target.value })}
                                     className={inputCls}
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Category</label>
+                                <select
+                                    value={docForm.category}
+                                    onChange={e => setDocForm({ ...docForm, category: e.target.value })}
+                                    className={inputCls}
+                                >
+                                    <option value="general">General Document</option>
+                                    <option value="agreement">Project Agreement / Contract</option>
+                                    <option value="kyc">KYC Document</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Description</label>
@@ -4849,17 +4920,33 @@ export default function Show({ project: initialProject }) {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={uploadingDoc || !docForm.file}
+                                    disabled={uploadingDoc || (!docForm.file && !docForm.media_file_id)}
                                     className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 transition-colors disabled:opacity-50"
                                 >
                                     {uploadingDoc ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                                    Upload
+                                    <span>Attach</span>
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
+
+            {/* File Selector Modal for File Manager */}
+            <FileSelectorModal
+                isOpen={showFileSelector}
+                onClose={() => setShowFileSelector(false)}
+                onSelect={(file) => {
+                    setDocForm({
+                        ...docForm,
+                        media_file_id: file.id,
+                        file: null,
+                        name: file.name
+                    });
+                    setShowFileSelector(false);
+                }}
+                multiple={false}
+            />
 
             {/* Task Creation Modal */}
             {showAddTaskModal && (

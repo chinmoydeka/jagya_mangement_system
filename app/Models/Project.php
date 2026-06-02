@@ -14,7 +14,7 @@ class Project extends Model
 
     protected $fillable = [
         'project_id', 'title', 'type', 'description', 'client_id',
-        'status', 'start_date', 'deadline', 'location',
+        'status', 'agreement_date', 'start_date', 'deadline', 'location',
         'budget', 'completion_percentage', 'created_by', 'payment_milestones',
         'map_location', 'latitude', 'longitude',
         'work_type', 'rcc_foundation', 'rcc_finishing', 'rcc_class',
@@ -23,6 +23,7 @@ class Project extends Model
     ];
 
     protected $casts = [
+        'agreement_date' => 'date',
         'start_date' => 'date',
         'deadline'   => 'date',
         'budget'     => 'decimal:2',

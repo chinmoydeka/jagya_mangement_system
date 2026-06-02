@@ -18,6 +18,9 @@ class ProjectController extends Controller
     {
         $projects = Project::with(['client:id,name,client_id,photo_path', 'team:id,name'])
             ->withCount(['tasks', 'documents'])
+            ->withSum(['payments as collected_amount' => function ($q) {
+                $q->where('payment_type', 'client_installment');
+            }], 'amount')
             ->orderByDesc('created_at')
             ->get()
             ->map(fn($p) => [
@@ -26,7 +29,7 @@ class ProjectController extends Controller
                 'title'          => $p->title,
                 'type'           => $p->type,
                 'status'         => $p->status,
-                'completion'     => $p->completion_percentage,
+                'completion'     => $p->budget > 0 ? (int) min(100, round((($p->collected_amount ?? 0) / $p->budget) * 100)) : 0,
                 'budget'         => $p->budget,
                 'start_date'     => $p->start_date?->format('d M Y'),
                 'deadline'       => $p->deadline?->format('d M Y'),
@@ -58,6 +61,7 @@ class ProjectController extends Controller
             'type'        => 'required|in:client,internal',
             'description' => 'nullable|string',
             'client_id'   => 'required_if:type,client|nullable|exists:clients,id',
+            'agreement_date' => 'nullable|date',
             'start_date'  => 'nullable|date',
             'deadline'    => 'nullable|date|after_or_equal:start_date',
             'status'      => 'nullable|in:draft,running,handover,on-hold,cancelled',
@@ -82,22 +86,57 @@ class ProjectController extends Controller
             }
 
             // ── Save Inline Documents ──
-            if ($request->hasFile('document_files')) {
-                $files = $request->file('document_files');
-                $names = $request->input('document_names', []);
-                $descs = $request->input('document_descriptions', []);
+            $documentNames = $request->input('document_names', []);
+            $documentDescs = $request->input('document_descriptions', []);
+            $documentCats  = $request->input('document_categories', []);
+            $mediaFileIds  = $request->input('document_media_file_ids', []);
+            $files         = $request->file('document_files', []);
 
-                foreach ($files as $i => $file) {
+            $maxIndex = max(
+                count($documentNames),
+                count($documentDescs),
+                count($mediaFileIds),
+                is_array($files) ? count($files) : 0
+            );
+
+            for ($i = 0; $i < $maxIndex; $i++) {
+                $filePath = null;
+                $fileMime = null;
+                $fileSize = null;
+                $docName  = $documentNames[$i] ?? null;
+                $docDesc  = $documentDescs[$i] ?? null;
+                $docCat   = $documentCats[$i] ?? 'general';
+
+                if (isset($files[$i]) && $request->hasFile("document_files.{$i}")) {
+                    $file = $files[$i];
                     $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
-                    $fileSize = $file->getSize(); // Get size first
+                    $fileSize = $file->getSize();
                     $file->move(public_path('uploads/projects'), $filename);
+                    $filePath = '/uploads/projects/' . $filename;
+                    $fileMime = $file->getClientMimeType();
+                    if (!$docName) {
+                        $docName = $file->getClientOriginalName();
+                    }
+                } elseif (isset($mediaFileIds[$i]) && $mediaFileIds[$i]) {
+                    $mediaFile = \App\Models\MediaFile::find($mediaFileIds[$i]);
+                    if ($mediaFile) {
+                        $filePath = $mediaFile->file_path;
+                        $fileMime = $mediaFile->mime_type;
+                        $fileSize = $mediaFile->file_size;
+                        if (!$docName) {
+                            $docName = $mediaFile->name;
+                        }
+                    }
+                }
 
+                if ($filePath) {
                     ProjectDocument::create([
                         'project_id'    => $project->id,
-                        'document_name' => $names[$i] ?? $file->getClientOriginalName(),
-                        'description'   => $descs[$i] ?? null,
-                        'file_path'     => '/uploads/projects/' . $filename,
-                        'file_type'     => $file->getClientMimeType(),
+                        'document_name' => $docName ?: 'Document',
+                        'description'   => $docDesc,
+                        'category'      => $docCat,
+                        'file_path'     => $filePath,
+                        'file_type'     => $fileMime,
                         'file_size'     => $fileSize,
                         'uploaded_by'   => Auth::id(),
                     ]);
@@ -174,6 +213,7 @@ class ProjectController extends Controller
             'type'                   => 'required|in:client,internal',
             'description'            => 'nullable|string',
             'client_id'              => 'nullable|exists:clients,id',
+            'agreement_date'         => 'nullable|date',
             'start_date'             => 'nullable|date',
             'deadline'               => 'nullable|date',
             'status'                 => 'nullable|in:draft,running,handover,on-hold,cancelled',
@@ -215,22 +255,35 @@ class ProjectController extends Controller
     public function storeDocument(Request $request, Project $project)
     {
         $request->validate([
-            'file'        => 'required|file|max:10240', // 10MB limit
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'file'          => 'required_without:media_file_id|file|max:10240', // 10MB limit
+            'media_file_id' => 'required_without:file|exists:media_files,id',
+            'name'          => 'required|string|max:255',
+            'description'   => 'nullable|string',
+            'category'      => 'nullable|string',
         ]);
 
-        $file = $request->file('file');
-        $filename = time() . '_' . rand(100, 999) . '_' . $file->getClientOriginalName();
-        $fileSize = $file->getSize(); // Get size first
-        $file->move(public_path('uploads/projects'), $filename);
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $filename = time() . '_' . rand(100, 999) . '_' . $file->getClientOriginalName();
+            $fileSize = $file->getSize(); // Get size first
+            $file->move(public_path('uploads/projects'), $filename);
+            $filePath = '/uploads/projects/' . $filename;
+            $fileMime = $file->getClientMimeType();
+        } else {
+            // Select from File Manager
+            $mediaFile = \App\Models\MediaFile::findOrFail($request->input('media_file_id'));
+            $filePath = $mediaFile->file_path;
+            $fileMime = $mediaFile->mime_type;
+            $fileSize = $mediaFile->file_size;
+        }
 
         $doc = ProjectDocument::create([
             'project_id'    => $project->id,
             'document_name' => $request->input('name'),
             'description'   => $request->input('description'),
-            'file_path'     => '/uploads/projects/' . $filename,
-            'file_type'     => $file->getClientMimeType(),
+            'category'      => $request->input('category', 'general'),
+            'file_path'     => $filePath,
+            'file_type'     => $fileMime,
             'file_size'     => $fileSize,
             'uploaded_by'   => Auth::id(),
         ]);

@@ -22,7 +22,7 @@ const defaultData = {
     // Step 1
     client_id: null, client: null,
     title: '', type: 'client', description: '',
-    start_date: '', deadline: '',
+    agreement_date: '', start_date: '', deadline: '',
     location: '', map_coords: null,
     map_location: '', latitude: null, longitude: null,
     status: 'draft',
@@ -106,6 +106,7 @@ export default function ProjectWizard({ open, onClose }) {
         formData.append('type', data.type);
         formData.append('description', data.description || '');
         if (data.client_id) formData.append('client_id', data.client_id);
+        formData.append('agreement_date', data.agreement_date || '');
         formData.append('start_date', data.start_date || '');
         formData.append('deadline', data.deadline || '');
         formData.append('location', data.location || '');
@@ -130,9 +131,12 @@ export default function ProjectWizard({ open, onClose }) {
         data.documents.forEach((doc, index) => {
             if (doc.file) {
                 formData.append(`document_files[${index}]`, doc.file);
-                formData.append(`document_names[${index}]`, doc.name || doc.file.name);
-                formData.append(`document_descriptions[${index}]`, doc.description || '');
+            } else if (doc.media_file_id) {
+                formData.append(`document_media_file_ids[${index}]`, doc.media_file_id);
             }
+            formData.append(`document_names[${index}]`, doc.name || '');
+            formData.append(`document_descriptions[${index}]`, doc.description || '');
+            formData.append(`document_categories[${index}]`, doc.category || 'general');
         });
 
         // Add tasks
