@@ -20,6 +20,7 @@ class Project extends Model
         'work_type', 'rcc_foundation', 'rcc_finishing', 'rcc_class',
         'assam_type_details', 'plinth_area', 'slab_area', 'head_room',
         'remarks', 'other_info', 'road_size', 'road_direction',
+        'client_source', 'client_source_member_name', 'client_source_member_id',
     ];
 
     protected $casts = [

@@ -12,12 +12,12 @@ export default function WizardStep2({ data, update }) {
     function handleLocalFiles(e) {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
-        const newDocs = files.map(file => ({
+        const newDocs = files.map((file, idx) => ({
             id: `doc_${Date.now()}_${Math.random()}`,
             file,
             name: file.name.replace(/\.[^.]+$/, ''),
             description: '',
-            category: 'general',
+            category: (data.documents.length === 0 && idx === 0) ? 'agreement' : 'general',
             file_type: file.type,
             file_size: file.size,
         }));
@@ -28,13 +28,13 @@ export default function WizardStep2({ data, update }) {
     // Handle selected manager assets
     function handleFileSelectorSelect(selectedFiles) {
         const filesArray = Array.isArray(selectedFiles) ? selectedFiles : [selectedFiles];
-        const newDocs = filesArray.map(file => ({
+        const newDocs = filesArray.map((file, idx) => ({
             id: `doc_${Date.now()}_${Math.random()}`,
             media_file_id: file.id,
             file: null,
             name: file.name.replace(/\.[^.]+$/, ''),
             description: '',
-            category: 'general',
+            category: (data.documents.length === 0 && idx === 0) ? 'agreement' : 'general',
             file_type: file.file_type || file.mime_type || 'document',
             file_size: file.file_size,
         }));

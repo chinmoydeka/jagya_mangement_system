@@ -92,7 +92,32 @@ export default function WizardStep3({ data, update }) {
 
     const rcc_foundation = data.rcc_foundation || '';
     const rcc_finishing = data.rcc_finishing || '';
-    const rcc_class = data.rcc_class || 'A Class';
+
+    // Determine class options based on agreement_date (threshold: 03-05-26 -> 2026-05-03)
+    const isBeforeThreshold = data.agreement_date && data.agreement_date < "2026-05-03";
+    const classOptions = isBeforeThreshold
+        ? ['LUXUERY', 'PREMIUM', 'DELUX', 'A CLASS', 'B CLASS', 'C CLASS']
+        : ['Infinite Series', 'Ultimate Luxury', 'Royal Classic', 'A Class', 'Royal Standard', 'Royal Basic', 'Prime Commercial'];
+
+    const rcc_class = data.rcc_class || (isBeforeThreshold ? 'A CLASS' : 'A Class');
+
+    // Auto-update rcc_class when options change to keep it valid
+    useEffect(() => {
+        if (work_type === 'RCC') {
+            const isBefore = data.agreement_date && data.agreement_date < "2026-05-03";
+            const options = isBefore
+                ? ['LUXUERY', 'PREMIUM', 'DELUX', 'A CLASS', 'B CLASS', 'C CLASS']
+                : ['Infinite Series', 'Ultimate Luxury', 'Royal Classic', 'A Class', 'Royal Standard', 'Royal Basic', 'Prime Commercial'];
+            
+            const current = data.rcc_class || '';
+            if (!current || !options.includes(current)) {
+                // Try case-insensitive matching
+                const matched = options.find(opt => opt.toLowerCase() === current.toLowerCase());
+                const updatedVal = matched || (isBefore ? 'A CLASS' : 'A Class');
+                update({ rcc_class: updatedVal });
+            }
+        }
+    }, [data.agreement_date, data.rcc_class, work_type]);
 
     const assam_roof_type = data.assam_roof_type || 'Tin';
     const assam_wood_quality = data.assam_wood_quality || 'Standard';
@@ -120,7 +145,7 @@ export default function WizardStep3({ data, update }) {
                                     work_type === type
                                         ? "bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20 scale-[1.02]"
                                         : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-amber-300 dark:hover:border-amber-800"
-                                )}
+                                    )}
                             >
                                 {type}
                             </button>
@@ -151,7 +176,7 @@ export default function WizardStep3({ data, update }) {
                                         onChange={e => update({ rcc_class: e.target.value })}
                                         className={inputCls}
                                     >
-                                        {['Infinite Series', 'Ultimate Luxury', 'Royal Classic', 'A Class', 'Royal Standard', 'Royal Basic', 'Prime Commercial'].map(c => (
+                                        {classOptions.map(c => (
                                             <option key={c} value={c}>{c}</option>
                                         ))}
                                     </select>

@@ -419,6 +419,16 @@ class TeamController extends Controller
         ]);
     }
 
+    public function destroyDesignation(\App\Models\Designation $designation)
+    {
+        $designation->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Designation deleted successfully!'
+        ]);
+    }
+
     public function storeOffice(Request $request)
     {
         $validated = $request->validate([

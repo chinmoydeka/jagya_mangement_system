@@ -269,34 +269,175 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project)
     {
         $validated = $request->validate([
-            'title'                  => 'required|string|max:255',
-            'type'                   => 'required|in:client,internal',
-            'description'            => 'nullable|string',
-            'client_id'              => 'nullable|exists:clients,id',
-            'agreement_date'         => 'nullable|date',
-            'start_date'             => 'nullable|date',
-            'deadline'               => 'nullable|date',
-            'status'                 => 'nullable|in:draft,running,handover,on-hold,cancelled',
-            'completion_percentage'  => 'nullable|integer|min:0|max:100',
-            'location'               => 'nullable|string',
-            'map_location'           => 'nullable|string',
-            'latitude'               => 'nullable|numeric',
-            'longitude'              => 'nullable|numeric',
-            'budget'                 => 'nullable|numeric',
-            'team_ids'               => 'nullable|array',
-            'team_ids.*'             => 'exists:users,id',
-            'payment_milestones'     => 'nullable|array',
+            'title'                     => 'required|string|max:255',
+            'type'                      => 'required|in:client,internal',
+            'description'               => 'nullable|string',
+            'client_id'                 => 'required_if:type,client|nullable|exists:clients,id',
+            'agreement_date'            => 'nullable|date',
+            'start_date'                => 'nullable|date',
+            'deadline'                  => 'nullable|date',
+            'status'                    => 'nullable|in:draft,running,handover,on-hold,cancelled',
+            'completion_percentage'     => 'nullable|integer|min:0|max:100',
+            'location'                  => 'nullable|string',
+            'map_location'              => 'nullable|string',
+            'latitude'                  => 'nullable|numeric',
+            'longitude'                 => 'nullable|numeric',
+            'budget'                    => 'nullable|numeric|min:0',
+            'team_ids'                  => 'nullable|array',
+            'team_ids.*'                => 'exists:users,id',
+            'work_type'                 => 'nullable|string',
+            'rcc_foundation'            => 'nullable|string',
+            'rcc_finishing'             => 'nullable|string',
+            'rcc_class'                 => 'nullable|string',
+            'plinth_area'               => 'nullable|string',
+            'slab_area'                 => 'nullable|string',
+            'head_room'                 => 'nullable|boolean',
+            'remarks'                   => 'nullable|string',
+            'other_info'                => 'nullable|string',
+            'road_size'                 => 'nullable|string',
+            'road_direction'            => 'nullable|string',
+            'client_source'             => 'nullable|string',
+            'client_source_member_name' => 'nullable|string',
+            'client_source_member_id'   => 'nullable|exists:users,id',
         ]);
 
-        DB::transaction(function () use ($project, $validated) {
-            $project->update($validated);
+        DB::transaction(function () use ($project, $validated, $request) {
+            $assamDetails = null;
+            if ($request->has('assam_type_details')) {
+                $raw = $request->input('assam_type_details');
+                $assamDetails = is_string($raw) ? json_decode($raw, true) : $raw;
+            }
+
+            $project->update([
+                ...$validated,
+                'assam_type_details' => $assamDetails,
+            ]);
 
             if (isset($validated['team_ids'])) {
                 $project->team()->sync($validated['team_ids']);
             }
+
+            // Sync/Upload documents
+            $documentIds   = $request->input('document_ids', []);
+            $documentNames = $request->input('document_names', []);
+            $documentDescs = $request->input('document_descriptions', []);
+            $documentCats  = $request->input('document_categories', []);
+            $mediaFileIds  = $request->input('document_media_file_ids', []);
+            $files         = $request->file('document_files', []);
+
+            $keptDocIds = [];
+            $maxIndex = max(
+                count($documentIds),
+                count($documentNames),
+                count($documentDescs),
+                count($mediaFileIds),
+                is_array($files) ? count($files) : 0
+            );
+
+            for ($i = 0; $i < $maxIndex; $i++) {
+                $docId    = $documentIds[$i] ?? null;
+                $docName  = $documentNames[$i] ?? null;
+                $docDesc  = $documentDescs[$i] ?? null;
+                $docCat   = $documentCats[$i] ?? 'general';
+
+                if ($docId) {
+                    $existingDoc = \App\Models\ProjectDocument::where('project_id', $project->id)->find($docId);
+                    if ($existingDoc) {
+                        $existingDoc->update([
+                            'document_name' => $docName ?: $existingDoc->document_name,
+                            'description'   => $docDesc,
+                            'category'      => $docCat,
+                        ]);
+                        $keptDocIds[] = $existingDoc->id;
+                    }
+                } else {
+                    $filePath = null;
+                    $fileMime = null;
+                    $fileSize = null;
+
+                    if (isset($files[$i]) && $request->hasFile("document_files.{$i}")) {
+                        $file = $files[$i];
+                        $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                        $fileSize = $file->getSize();
+                        $file->move(public_path('uploads/projects'), $filename);
+                        $filePath = '/uploads/projects/' . $filename;
+                        $fileMime = $file->getClientMimeType();
+                        if (!$docName) {
+                            $docName = $file->getClientOriginalName();
+                        }
+                    } elseif (isset($mediaFileIds[$i]) && $mediaFileIds[$i]) {
+                        $mediaFile = \App\Models\MediaFile::find($mediaFileIds[$i]);
+                        if ($mediaFile) {
+                            $filePath = $mediaFile->file_path;
+                            $fileMime = $mediaFile->mime_type;
+                            $fileSize = $mediaFile->file_size;
+                            if (!$docName) {
+                                $docName = $mediaFile->name;
+                            }
+                        }
+                    }
+
+                    if ($filePath) {
+                        $newDoc = \App\Models\ProjectDocument::create([
+                            'project_id'    => $project->id,
+                            'document_name' => $docName ?: 'Document',
+                            'description'   => $docDesc,
+                            'category'      => $docCat,
+                            'file_path'     => $filePath,
+                            'file_type'     => $fileMime,
+                            'file_size'     => $fileSize,
+                            'uploaded_by'   => auth()->id(),
+                        ]);
+                        $keptDocIds[] = $newDoc->id;
+                    }
+                }
+            }
+
+            // Delete documents that are NOT kept
+            \App\Models\ProjectDocument::where('project_id', $project->id)
+                ->whereIn('category', ['general', 'agreement', 'kyc'])
+                ->whereNotIn('id', $keptDocIds)
+                ->delete();
+
+            // Process custom files/voices uploaded during project update
+            if ($request->hasFile('setup_files')) {
+                foreach ($request->file('setup_files') as $file) {
+                    $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                    $fileSize = $file->getSize();
+                    $file->move(public_path('uploads/projects'), $filename);
+                    
+                    $project->documents()->create([
+                        'document_name' => $file->getClientOriginalName(),
+                        'description'   => 'Uploaded during project modification',
+                        'category'      => 'supporting_files',
+                        'file_path'     => '/uploads/projects/' . $filename,
+                        'file_type'     => $file->getClientMimeType(),
+                        'file_size'     => $fileSize,
+                        'uploaded_by'   => auth()->id(),
+                    ]);
+                }
+            }
+
+            if ($request->hasFile('setup_voices')) {
+                foreach ($request->file('setup_voices') as $file) {
+                    $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                    $fileSize = $file->getSize();
+                    $file->move(public_path('uploads/voices'), $filename);
+                    
+                    $project->documents()->create([
+                        'document_name' => 'Voice Note - ' . date('Y-m-d H:i:s'),
+                        'description'   => 'Voice recorded during project modification',
+                        'category'      => 'voice_note',
+                        'file_path'     => '/uploads/voices/' . $filename,
+                        'file_type'     => $file->getClientMimeType(),
+                        'file_size'     => $fileSize,
+                        'uploaded_by'   => auth()->id(),
+                    ]);
+                }
+            }
         });
 
-        $project->load(['client', 'team', 'documents', 'tasks.assignee']);
+        $project->load(['client', 'team', 'documents', 'tasks.assignee', 'payments']);
 
         if ($request->wantsJson()) {
             return response()->json(['project' => $project]);

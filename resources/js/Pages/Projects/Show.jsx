@@ -10,6 +10,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
 import ProjectOnboarding from '@/Components/ProjectOnboarding';
+import ProjectWizard from '@/Components/ProjectWizard/ProjectWizard';
 import ImageCropperModal from '@/Components/ImageCropperModal';
 import FileSelectorModal from '@/Components/FileSelectorModal';
 import Divider from '@mui/material/Divider';
@@ -79,7 +80,7 @@ export default function Show({ project: initialProject }) {
         }
         return false;
     });
-    const [editing, setEditing] = useState(false);
+    const [showEditWizard, setShowEditWizard] = useState(false);
     const [saving, setSaving] = useState(false);
     const [allMembers, setAllMembers] = useState([]);
     const [loadingMembers, setLoadingMembers] = useState(false);
@@ -648,22 +649,7 @@ export default function Show({ project: initialProject }) {
         finally { setRemovingMemberId(null); }
     };
 
-    // Inline Details Form State
-    const [form, setForm] = useState({
-        title: project.title || '',
-        description: project.description || '',
-        type: project.type || 'client',
-        status: project.status || 'draft',
-        location: project.location || '',
-        map_location: project.map_location || '',
-        latitude: project.latitude || '',
-        longitude: project.longitude || '',
-        budget: project.budget || '',
-        agreement_date: project.agreement_date || '',
-        start_date: project.start_date || '',
-        deadline: project.deadline || '',
-        team_ids: project.team ? project.team.map(m => m.id) : [],
-    });
+
 
     // Document Modal State
     const [showUploadDocModal, setShowUploadDocModal] = useState(false);
@@ -865,19 +851,7 @@ export default function Show({ project: initialProject }) {
 
     const isInternal = project.type === 'internal';
 
-    function handleSaveDetails(e) {
-        e.preventDefault();
-        setSaving(true);
-        router.put(`/projects/${project.id}`, form, {
-            onSuccess: () => {
-                setEditing(false);
-            },
-            onError: () => {
-                alert('An error occurred while saving details.');
-            },
-            onFinish: () => setSaving(false)
-        });
-    }
+
 
     function handleUploadDocument(e) {
         e.preventDefault();
@@ -1011,33 +985,11 @@ export default function Show({ project: initialProject }) {
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={() => {
-                            setForm({
-                                title: project.title || '',
-                                description: project.description || '',
-                                type: project.type || 'client',
-                                status: project.status || 'draft',
-                                location: project.location || '',
-                                map_location: project.map_location || '',
-                                latitude: project.latitude || '',
-                                longitude: project.longitude || '',
-                                budget: project.budget || '',
-                                agreement_date: project.agreement_date || '',
-                                start_date: project.start_date || '',
-                                deadline: project.deadline || '',
-                                team_ids: project.team ? project.team.map(m => m.id) : [],
-                            });
-                            setEditing(!editing);
-                        }}
-                        className={cn(
-                            'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border',
-                            editing
-                                ? 'bg-slate-50 text-slate-755 border-slate-200 hover:bg-slate-100'
-                                : 'bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
-                        )}
+                        onClick={() => setShowEditWizard(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border bg-white text-slate-700 dark:bg-slate-900 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
                     >
-                        {editing ? <X size={15} /> : <Edit size={15} />}
-                        {editing ? 'Cancel' : 'Modify details'}
+                        <Edit size={15} />
+                        Modify details
                     </button>
 
                     {project.status === 'draft' ? (
@@ -1171,248 +1123,6 @@ export default function Show({ project: initialProject }) {
                     {/* Tab Body */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
                         {activeTab === 'overview' && (
-                            editing ? (
-                                <form onSubmit={handleSaveDetails} className="space-y-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Project Title</label>
-                                            <input
-                                                type="text"
-                                                value={form.title}
-                                                onChange={e => setForm({ ...form, title: e.target.value })}
-                                                className={inputCls}
-                                                required
-                                            />
-                                        </div>
-
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Description</label>
-                                            <textarea
-                                                value={form.description}
-                                                onChange={e => setForm({ ...form, description: e.target.value })}
-                                                rows={4}
-                                                className={cn(inputCls, 'resize-none')}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Status</label>
-                                            <select
-                                                value={form.status}
-                                                onChange={e => setForm({ ...form, status: e.target.value })}
-                                                className={inputCls}
-                                            >
-                                                {STATUS_OPTIONS.map(o => (
-                                                    <option key={o.value} value={o.value}>{o.label}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Site Address (User Input)</label>
-                                            <input
-                                                type="text"
-                                                value={form.location}
-                                                onChange={e => setForm({ ...form, location: e.target.value })}
-                                                className={inputCls}
-                                                placeholder="e.g. Beltola, Guwahati"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Google Maps Location</label>
-                                            <input
-                                                type="text"
-                                                value={form.map_location}
-                                                onChange={e => setForm({ ...form, map_location: e.target.value })}
-                                                className={inputCls}
-                                                placeholder="Google Maps Geocoded Location"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Latitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    value={form.latitude}
-                                                    onChange={e => setForm({ ...form, latitude: e.target.value })}
-                                                    className={inputCls}
-                                                    placeholder="Latitude"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Longitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    value={form.longitude}
-                                                    onChange={e => setForm({ ...form, longitude: e.target.value })}
-                                                    className={inputCls}
-                                                    placeholder="Longitude"
-                                                />
-                                            </div>
-                                        </div>
-
-                                         <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-800/40 p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80">
-                                             <label className="block text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2">Project Budget Configuration</label>
-                                             <div className="relative mt-1 rounded-2xl shadow-sm">
-                                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                                                     <span className="text-xl font-bold text-slate-400">₹</span>
-                                                 </div>
-                                                 <input
-                                                     type="number"
-                                                     step="1"
-                                                     min="0"
-                                                     value={form.budget}
-                                                     onChange={e => setForm({ ...form, budget: e.target.value })}
-                                                     className="block w-full rounded-2xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-12 py-3.5 text-2xl font-black text-slate-800 dark:text-slate-100 focus:border-amber-400 focus:ring-amber-400/50"
-                                                     placeholder="0"
-                                                 />
-                                             </div>
-                                             
-                                             {/* Live formatted representation in rupees & words */}
-                                             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                                 <span className="text-slate-500 font-medium">Live Valuation:</span>
-                                                 <span className="font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded-lg">
-                                                     {(() => {
-                                                         const num = parseFloat(form.budget) || 0;
-                                                         if (!num) return '₹ 0 (Zero Rupees)';
-                                                         const rupees = num;
-                                                         const formatter = new Intl.NumberFormat('en-IN', {
-                                                             style: 'currency',
-                                                             currency: 'INR',
-                                                             maximumFractionDigits: 0
-                                                         });
-                                                         
-                                                         let words = '';
-                                                         const crores = Math.floor(rupees / 10000000);
-                                                         const lakhs = Math.floor((rupees % 10000000) / 100000);
-                                                         const thousands = Math.floor((rupees % 100000) / 1000);
-                                                         
-                                                         if (crores > 0) words += `${crores} Crore${crores > 1 ? 's' : ''}`;
-                                                         if (lakhs > 0) words += `${words ? ' ' : ''}${lakhs} Lakh${lakhs > 1 ? 's' : ''}`;
-                                                         if (thousands > 0) words += `${words ? ' ' : ''}${thousands} Thousand${thousands > 1 ? 's' : ''}`;
-                                                         
-                                                         return `${formatter.format(rupees)} (${words || 'Zero'} Rupees)`;
-                                                     })()}
-                                                 </span>
-                                             </div>
-
-                                             {/* Preset Buttons for Quick Tuning */}
-                                             <div className="mt-3 flex flex-wrap gap-2">
-                                                 {[100000, 500000, 1000000, 10000000].map((val) => {
-                                                     const label = val >= 10000000 ? `${val/10000000} Cr` : val >= 100000 ? `${val/100000} L` : val;
-                                                     return (
-                                                         <button
-                                                             key={val}
-                                                             type="button"
-                                                             onClick={() => {
-                                                                 const current = parseFloat(form.budget) || 0;
-                                                                 setForm({ ...form, budget: current + val });
-                                                             }}
-                                                             className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
-                                                         >
-                                                             +{label}
-                                                         </button>
-                                                     );
-                                                 })}
-                                                 <button
-                                                     type="button"
-                                                     onClick={() => setForm({ ...form, budget: '' })}
-                                                     className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-xl transition-colors shadow-sm ml-auto"
-                                                 >
-                                                     Clear
-                                                 </button>
-                                             </div>
-                                         </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Agreement Date</label>
-                                            <input
-                                                type="date"
-                                                value={form.agreement_date}
-                                                onChange={e => setForm({ ...form, agreement_date: e.target.value })}
-                                                className={inputCls}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Start Date</label>
-                                            <input
-                                                type="date"
-                                                value={form.start_date}
-                                                onChange={e => setForm({ ...form, start_date: e.target.value })}
-                                                className={inputCls}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Deadline</label>
-                                            <input
-                                                type="date"
-                                                value={form.deadline}
-                                                onChange={e => setForm({ ...form, deadline: e.target.value })}
-                                                className={inputCls}
-                                            />
-                                        </div>
-
-                                        {/* Assign New Team Members Section */}
-                                        <div className="sm:col-span-2">
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assign Team Members</label>
-                                            {allMembers.length > 0 ? (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 border border-slate-200 dark:border-slate-800 rounded-xl max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-900">
-                                                    {allMembers.map(m => {
-                                                        const checked = form.team_ids.includes(m.id);
-                                                        return (
-                                                            <label key={m.id} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-sm">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={checked}
-                                                                    onChange={() => {
-                                                                        const updatedIds = checked
-                                                                            ? form.team_ids.filter(id => id !== m.id)
-                                                                            : [...form.team_ids, m.id];
-                                                                        setForm({ ...form, team_ids: updatedIds });
-                                                                    }}
-                                                                    className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
-                                                                />
-                                                                <div>
-                                                                    <p className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</p>
-                                                                    <p className="text-[10px] text-slate-400 capitalize">{m.role}</p>
-                                                                </div>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-xs text-slate-400 italic">
-                                                    <Loader2 size={12} className="animate-spin" /> Loading available team members...
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditing(false)}
-                                            className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={saving}
-                                            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white rounded-xl bg-amber-500 hover:bg-amber-600 transition-colors"
-                                        >
-                                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </form>
-                            ) : (
                                 <div className="space-y-6">
                                     {project.work_type && (
                                         <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/5 via-slate-50/50 to-white dark:from-amber-500/5 dark:via-slate-900/40 dark:to-slate-950 backdrop-blur-3xl border border-amber-500/20 dark:border-amber-500/10 shadow-[0_20px_50px_rgba(245,158,11,0.05)] rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-8">
@@ -1553,9 +1263,9 @@ export default function Show({ project: initialProject }) {
                                                 </div>
                                             </div>
 
-                                            {(project.remarks || project.other_info || project.client_source) && (
+                                            {(project.remarks || project.other_info || (project.type === 'client' && project.client_source)) && (
                                                 <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                    {project.client_source && (
+                                                    {project.type === 'client' && project.client_source && (
                                                         <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
                                                             <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Referral / Client Source</span>
                                                             <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">
@@ -1882,7 +1592,6 @@ export default function Show({ project: initialProject }) {
                                         </div>
                                     )}
                                 </div>
-                            )
                         )}
 
                         {activeTab === 'work_info' && (
@@ -2026,9 +1735,9 @@ export default function Show({ project: initialProject }) {
                                                 </div>
                                             </div>
                                         </div>
-                                        {(project.remarks || project.other_info || project.client_source) && (
+                                        {(project.remarks || project.other_info || (project.type === 'client' && project.client_source)) && (
                                             <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                {project.client_source && (
+                                                {project.type === 'client' && project.client_source && (
                                                     <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
                                                         <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Referral / Client Source</span>
                                                         <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">
@@ -3363,9 +3072,9 @@ export default function Show({ project: initialProject }) {
                                                     </div>
                                                 </div>
 
-                                                {(project.remarks || project.other_info || project.client_source) && (
+                                                {(project.remarks || project.other_info || (project.type === 'client' && project.client_source)) && (
                                                     <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {project.client_source && (
+                                                        {project.type === 'client' && project.client_source && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Referral / Client Source</span>
                                                                 <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">
@@ -3768,9 +3477,9 @@ export default function Show({ project: initialProject }) {
                                                     </div>
                                                 </div>
 
-                                                {(project.remarks || project.other_info || project.client_source) && (
+                                                {(project.remarks || project.other_info || (project.type === 'client' && project.client_source)) && (
                                                     <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {project.client_source && (
+                                                        {project.type === 'client' && project.client_source && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Referral / Client Source</span>
                                                                 <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">
@@ -5779,6 +5488,13 @@ export default function Show({ project: initialProject }) {
                     onClose={() => setShowSetupModal(false)} 
                 />
             )}
+
+            {/* Unified Project Wizard for Editing */}
+            <ProjectWizard
+                open={showEditWizard}
+                project={project}
+                onClose={() => setShowEditWizard(false)}
+            />
 
             <ImageCropperModal
                 isOpen={cropModalOpen}

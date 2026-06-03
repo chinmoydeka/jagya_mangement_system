@@ -49,37 +49,102 @@ const defaultData = {
     setup_voices: [],
 };
 
-export default function ProjectWizard({ open, onClose }) {
+const mapProjectToData = (project) => {
+    if (!project) return defaultData;
+    return {
+        id: project.id,
+        // Step 1
+        client_id: project.client_id || null,
+        client: project.client || null,
+        client_source: project.client_source || 'Office',
+        client_source_member_name: project.client_source_member_name || '',
+        client_source_member_id: project.client_source_member_id || null,
+        title: project.title || '',
+        type: project.type || 'client',
+        description: project.description || '',
+        agreement_date: project.agreement_date ? project.agreement_date.split('T')[0] : '',
+        start_date: project.start_date ? project.start_date.split('T')[0] : '',
+        deadline: project.deadline ? project.deadline.split('T')[0] : '',
+        location: project.location || '',
+        map_location: project.map_location || '',
+        latitude: project.latitude || null,
+        longitude: project.longitude || null,
+        status: project.status || 'draft',
+        budget: project.budget ? Math.round(parseFloat(project.budget)) : '',
+        // Step 2
+        documents: (project.documents || [])
+            .filter(doc => ['general', 'agreement', 'kyc'].includes(doc.category))
+            .map(doc => ({
+                id: doc.id,
+                name: doc.document_name,
+                description: doc.description || '',
+                category: doc.category || 'general',
+                file_type: doc.file_type,
+                file_size: doc.file_size,
+                file_path: doc.file_path,
+                file: null,
+            })),
+        // Step 3
+        work_type: project.work_type || 'RCC',
+        rcc_foundation: project.rcc_foundation || '',
+        rcc_finishing: project.rcc_finishing || '',
+        rcc_class: project.rcc_class || 'A Class',
+        assam_roof_type: project.assam_type_details?.roof_type || 'Tin',
+        assam_wood_quality: project.assam_type_details?.wood_quality || 'Standard',
+        assam_rooms: project.assam_type_details?.rooms || '',
+        other_scope: project.assam_type_details?.other_scope || '',
+        plinth_area: project.plinth_area || '',
+        slab_area: project.slab_area || '',
+        head_room: !!project.head_room,
+        remarks: project.remarks || '',
+        other_info: project.other_info || '',
+        road_size: project.road_size || '',
+        road_direction: project.road_direction || 'North',
+        setup_files: [],
+        setup_voices: [],
+    };
+};
+
+export default function ProjectWizard({ open, onClose, project = null }) {
+    const isEditMode = !!project;
     const [step, setStep] = useState(1);
     const [data, setData] = useState(defaultData);
     const [saving, setSaving] = useState(false);
     const [isDraft, setIsDraft] = useState(false);
     const [markAsCompleted, setMarkAsCompleted] = useState(false);
 
-    // Load draft on open
+    // Load draft or project data on open
     useEffect(() => {
         if (!open) return;
-        try {
-            const saved = localStorage.getItem(DRAFT_KEY);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                setData({ ...defaultData, ...(parsed.data || {}) });
-                setStep(parsed.step || 1);
-                setIsDraft(true);
-            } else {
-                setData(defaultData);
-                setStep(1);
-                setIsDraft(false);
-                setMarkAsCompleted(false);
-            }
-        } catch { /* ignore */ }
-    }, [open]);
+        if (isEditMode) {
+            setData(mapProjectToData(project));
+            setStep(1);
+            setIsDraft(false);
+            setMarkAsCompleted(false);
+        } else {
+            try {
+                const saved = localStorage.getItem(DRAFT_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setData({ ...defaultData, ...(parsed.data || {}) });
+                    setStep(parsed.step || 1);
+                    setIsDraft(true);
+                } else {
+                    setData(defaultData);
+                    setStep(1);
+                    setIsDraft(false);
+                    setMarkAsCompleted(false);
+                }
+            } catch { /* ignore */ }
+        }
+    }, [open, project]);
 
-    // Auto-save on every change
+    // Auto-save on every change (creation mode only)
     const saveDraft = useCallback((nextData, nextStep) => {
+        if (isEditMode) return;
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ data: nextData, step: nextStep, ts: Date.now() }));
         setIsDraft(true);
-    }, []);
+    }, [isEditMode]);
 
     function update(fields) {
         const next = { ...data, ...fields };
@@ -109,10 +174,12 @@ export default function ProjectWizard({ open, onClose }) {
                 // update state without calling update(fields) which saves to localstorage to avoid loop
                 const next = { ...data, title: generatedTitle };
                 setData(next);
-                localStorage.setItem(DRAFT_KEY, JSON.stringify({ data: next, step: step, ts: Date.now() }));
+                if (!isEditMode) {
+                    localStorage.setItem(DRAFT_KEY, JSON.stringify({ data: next, step: step, ts: Date.now() }));
+                }
             }
         }
-    }, [step, data.work_type, data.rcc_foundation, data.rcc_class, data.plinth_area, data.slab_area]);
+    }, [step, data.work_type, data.rcc_foundation, data.rcc_class, data.plinth_area, data.slab_area, isEditMode]);
 
     function goNext() { 
         if (step === 1 && !canProceedFromStep1()) return;
@@ -130,13 +197,23 @@ export default function ProjectWizard({ open, onClose }) {
     }
 
     function handleClose() {
-        if (!confirm('Close wizard? Your draft is auto-saved and can be resumed.')) return;
-        onClose();
+        if (isEditMode) {
+            if (!confirm('Close wizard? Unsaved changes will be lost.')) return;
+            onClose();
+        } else {
+            if (!confirm('Close wizard? Your draft is auto-saved and can be resumed.')) return;
+            onClose();
+        }
     }
 
     async function handleCreate(asDraft = false) {
         setSaving(true);
         const formData = new FormData();
+        
+        if (isEditMode) {
+            formData.append('_method', 'PUT');
+        }
+
         formData.append('title', data.title);
         formData.append('type', data.type);
         formData.append('description', data.description || '');
@@ -183,6 +260,9 @@ export default function ProjectWizard({ open, onClose }) {
             formData.append('rcc_class', data.rcc_class || 'A Class');
         } else {
             formData.append('assam_type_details', JSON.stringify({
+                roof_type: data.assam_roof_type || 'Tin',
+                wood_quality: data.assam_wood_quality || 'Standard',
+                rooms: data.assam_rooms || '',
                 other_scope: data.other_scope || ''
             }));
         }
@@ -205,6 +285,9 @@ export default function ProjectWizard({ open, onClose }) {
 
         // Add documents (file attachments)
         data.documents.forEach((doc, index) => {
+            if (doc.id && typeof doc.id === 'number') {
+                formData.append(`document_ids[${index}]`, String(doc.id));
+            }
             if (doc.file) {
                 formData.append(`document_files[${index}]`, doc.file);
             } else if (doc.media_file_id) {
@@ -215,9 +298,13 @@ export default function ProjectWizard({ open, onClose }) {
             formData.append(`document_categories[${index}]`, doc.category || 'general');
         });
 
-        router.post('/projects', formData, {
+        const url = isEditMode ? `/projects/${project.id}` : '/projects';
+
+        router.post(url, formData, {
             onSuccess: () => {
-                clearDraft();
+                if (!isEditMode) {
+                    clearDraft();
+                }
                 onClose();
             },
             onError: () => setSaving(false),
@@ -246,7 +333,7 @@ export default function ProjectWizard({ open, onClose }) {
                         </div>
                         <div>
                             <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                                Create New Project
+                                {isEditMode ? 'Modify Project Details' : 'Create New Project'}
                             </h2>
                             <p className="text-xs text-slate-400">Step {step} of {STEPS.length} — {STEPS[step - 1].label}</p>
                         </div>
@@ -339,24 +426,26 @@ export default function ProjectWizard({ open, onClose }) {
                     <div className="flex items-center gap-1.5 sm:gap-2">
                         {step === 4 ? (
                             <>
-                                <button
-                                    onClick={() => handleCreate(true)}
-                                    disabled={saving}
-                                    className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-60"
-                                >
-                                    <Save size={15} /> 
-                                    <span className="hidden sm:inline">Save Draft</span>
-                                    <span className="inline sm:hidden">Draft</span>
-                                </button>
+                                {!isEditMode && (
+                                    <button
+                                        onClick={() => handleCreate(true)}
+                                        disabled={saving}
+                                        className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-60"
+                                    >
+                                        <Save size={15} /> 
+                                        <span className="hidden sm:inline">Save Draft</span>
+                                        <span className="inline sm:hidden">Draft</span>
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => handleCreate(false)}
                                     disabled={saving || !data.title}
                                     className="inline-flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white transition-all disabled:opacity-60"
                                     style={{ background: 'linear-gradient(135deg, #f59e0b, #dc2626)', boxShadow: '0 4px 14px rgba(245,158,11,0.3)' }}
                                 >
-                                    {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                                    <span className="hidden sm:inline">Create Project</span>
-                                    <span className="inline sm:hidden">Create</span>
+                                    {saving ? <Loader2 size={15} className="animate-spin" /> : (isEditMode ? <Save size={15} /> : <CheckCircle2 size={15} />)}
+                                    <span className="hidden sm:inline">{isEditMode ? 'Save Changes' : 'Create Project'}</span>
+                                    <span className="inline sm:hidden">{isEditMode ? 'Save' : 'Create'}</span>
                                 </button>
                             </>
                         ) : (
@@ -387,3 +476,4 @@ export default function ProjectWizard({ open, onClose }) {
         </>
     );
 }
+

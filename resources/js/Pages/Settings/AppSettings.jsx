@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import React, { useState, useEffect } from 'react';
+import { Head, router } from '@inertiajs/react';
 import {
     Settings,
     Building2,
@@ -66,15 +66,31 @@ export default function AppSettings({ departments = [], designations = [], offic
     const [processingDesig, setProcessingDesig] = useState(false);
     const [processingOffice, setProcessingOffice] = useState(false);
 
+    // Keep local state in sync when Inertia reloads/updates props
+    useEffect(() => {
+        setLocalDepts(departments);
+    }, [departments]);
+
+    useEffect(() => {
+        setLocalDesigs(designations);
+    }, [designations]);
+
+    useEffect(() => {
+        setLocalOffices(offices);
+    }, [offices]);
+
     const handleAddDept = async (e) => {
         e.preventDefault();
         if (!newDeptName.trim()) return;
         setProcessingDept(true);
         try {
-            const res = await axios.post('/departments', { name: newDeptName.trim() });
+            const res = await axios.post('/departments', { name: newDeptName.trim() }, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalDepts([...localDepts, res.data.department]);
                 setNewDeptName('');
+                router.reload({ only: ['departments'] });
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to add department');
@@ -86,12 +102,15 @@ export default function AppSettings({ departments = [], designations = [], offic
     const handleDeleteDept = async (id) => {
         if (!confirm('Are you sure you want to delete this department?')) return;
         try {
-            const res = await axios.delete(`/departments/${id}`);
+            const res = await axios.delete(`/departments/${id}`, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalDepts(localDepts.filter(d => d.id !== id));
+                router.reload({ only: ['departments'] });
             }
         } catch (err) {
-            alert('Failed to delete department');
+            alert(err.response?.data?.message || 'Failed to delete department');
         }
     };
 
@@ -100,10 +119,13 @@ export default function AppSettings({ departments = [], designations = [], offic
         if (!newDesigName.trim()) return;
         setProcessingDesig(true);
         try {
-            const res = await axios.post('/designations', { name: newDesigName.trim() });
+            const res = await axios.post('/designations', { name: newDesigName.trim() }, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalDesigs([...localDesigs, res.data.designation]);
                 setNewDesigName('');
+                router.reload({ only: ['designations'] });
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to add designation');
@@ -115,12 +137,15 @@ export default function AppSettings({ departments = [], designations = [], offic
     const handleDeleteDesig = async (id) => {
         if (!confirm('Are you sure you want to delete this designation?')) return;
         try {
-            const res = await axios.delete(`/designations/${id}`);
+            const res = await axios.delete(`/designations/${id}`, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalDesigs(localDesigs.filter(d => d.id !== id));
+                router.reload({ only: ['designations'] });
             }
         } catch (err) {
-            alert('Failed to delete designation');
+            alert(err.response?.data?.message || 'Failed to delete designation');
         }
     };
 
@@ -129,10 +154,13 @@ export default function AppSettings({ departments = [], designations = [], offic
         if (!newOfficeName.trim()) return;
         setProcessingOffice(true);
         try {
-            const res = await axios.post('/offices', { name: newOfficeName.trim() });
+            const res = await axios.post('/offices', { name: newOfficeName.trim() }, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalOffices([...localOffices, res.data.office]);
                 setNewOfficeName('');
+                router.reload({ only: ['offices'] });
             }
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to add office');
@@ -144,12 +172,15 @@ export default function AppSettings({ departments = [], designations = [], offic
     const handleDeleteOffice = async (id) => {
         if (!confirm('Are you sure you want to delete this office?')) return;
         try {
-            const res = await axios.delete(`/offices/${id}`);
+            const res = await axios.delete(`/offices/${id}`, {
+                headers: { 'Accept': 'application/json' }
+            });
             if (res.data.success) {
                 setLocalOffices(localOffices.filter(o => o.id !== id));
+                router.reload({ only: ['offices'] });
             }
         } catch (err) {
-            alert('Failed to delete office');
+            alert(err.response?.data?.message || 'Failed to delete office');
         }
     };
 

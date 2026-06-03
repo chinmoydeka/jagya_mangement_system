@@ -25,6 +25,15 @@ export default function Projects({ projects: serverProjects }) {
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
+    const getFilterCount = (filterName) => {
+        if (filterName === 'All Agreement') return projects.length;
+        const status =
+            filterName === 'Runing Project' ? 'running' :
+            filterName === 'ON Hold' ? 'on-hold' :
+            filterName.toLowerCase().replace(' ', '-');
+        return projects.filter(p => p.status === status).length;
+    };
+
     // Check if we have server projects, otherwise fallback to static demo
     const [projects, setProjects] = useState(() => {
         return (serverProjects && serverProjects.length > 0) ? serverProjects : [
@@ -132,21 +141,32 @@ export default function Projects({ projects: serverProjects }) {
                         />
                     </div>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                        {FILTERS.map((f) => (
-                            <button
-                                key={f}
-                                onClick={() => setActiveFilter(f)}
-                                className={cn(
-                                    'px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
-                                    activeFilter === f
-                                        ? 'text-white shadow-md'
-                                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                                )}
-                                style={activeFilter === f ? { background: 'linear-gradient(135deg, #f59e0b, #dc2626)' } : {}}
-                            >
-                                {f}
-                            </button>
-                        ))}
+                        {FILTERS.map((f) => {
+                            const count = getFilterCount(f);
+                            return (
+                                <button
+                                    key={f}
+                                    onClick={() => setActiveFilter(f)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all',
+                                        activeFilter === f
+                                            ? 'text-white shadow-md'
+                                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                    )}
+                                    style={activeFilter === f ? { background: 'linear-gradient(135deg, #f59e0b, #dc2626)' } : {}}
+                                >
+                                    <span>{f}</span>
+                                    <span className={cn(
+                                        'px-2 py-0.5 text-xs font-bold rounded-full transition-colors',
+                                        activeFilter === f
+                                            ? 'bg-white/20 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50'
+                                    )}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -315,6 +335,7 @@ export default function Projects({ projects: serverProjects }) {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                                    <th className="pl-6 pr-2 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-12 text-left">#</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Project ID</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider min-w-[320px]">Project Name</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Client / Type</th>
@@ -326,10 +347,14 @@ export default function Projects({ projects: serverProjects }) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                {filtered.map((project) => {
+                                {filtered.map((project, index) => {
                                     const s = STATUS_CFG[project.status] || STATUS_CFG.draft;
+                                    const projectNumber = filtered.length - index;
                                     return (
                                         <tr key={project.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className="pl-6 pr-2 py-4 whitespace-nowrap text-sm font-semibold text-slate-400 dark:text-slate-500 text-left">
+                                                {projectNumber}
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500">
                                                 {project.project_id}
                                             </td>
