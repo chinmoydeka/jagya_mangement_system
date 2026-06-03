@@ -43,6 +43,11 @@ export default function WizardReview({ data, markAsCompleted, setMarkAsCompleted
                     <Row label="Name" value={data.client.name} />
                     <Row label="ID" value={data.client.client_id} />
                     <Row label="Mobile" value={data.client.mobile} />
+                    <Row label="Source / Referral" value={
+                        data.client_source === 'Team Member'
+                            ? `Team Member: ${data.client_source_member_name}`
+                            : data.client_source
+                    } />
                 </Section>
             )}
 
@@ -62,12 +67,6 @@ export default function WizardReview({ data, markAsCompleted, setMarkAsCompleted
                 } />
                 <Row label="Site Address (User Input)" value={data.location || 'Not Specified'} />
                 <Row label="Google Maps Location" value={data.map_location} />
-                {data.description && (
-                    <div className="pt-1">
-                        <p className="text-xs text-slate-500 mb-1">Description</p>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{data.description}</p>
-                    </div>
-                )}
             </Section>
 
             {/* Documents */}
@@ -82,44 +81,30 @@ export default function WizardReview({ data, markAsCompleted, setMarkAsCompleted
                 ))}
             </Section>
 
-            {/* Team */}
-            <Section icon={Users} label={`Team Members (${data.team.length})`} color="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400">
-                {data.team.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No team members assigned</p>
-                ) : (
-                    <div className="flex flex-wrap gap-2">
-                        {data.team.map(m => (
-                            <span key={m.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300">
-                                <span className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-[10px] font-bold">
-                                    {m.name?.charAt(0)}
-                                </span>
-                                {m.name}
-                            </span>
-                        ))}
+            {/* Work Information */}
+            <Section icon={ClipboardList} label="Work Information" color="bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                <Row label="Work Type" value={data.work_type} />
+                {data.work_type === 'RCC' && (
+                    <>
+                        <Row label="Foundation" value={data.rcc_foundation} />
+                        <Row label="Class" value={data.rcc_class} />
+                    </>
+                )}
+                {data.work_type !== 'RCC' && data.other_scope && (
+                    <div className="pt-1">
+                        <p className="text-xs text-slate-500 mb-1">Scope of Work</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{data.other_scope}</p>
                     </div>
                 )}
-            </Section>
-
-            {/* Tasks */}
-            <Section icon={ClipboardList} label={`Tasks (${data.tasks.length})`} color="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                {data.tasks.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No tasks planned</p>
-                ) : data.tasks.map((t, i) => (
-                    <div key={t.id} className="flex items-center justify-between py-1">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400 w-4">{i + 1}.</span>
-                            <span className="text-sm text-slate-700 dark:text-slate-300">{t.title || 'Untitled Task'}</span>
-                        </div>
-                        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
-                            t.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                            t.priority === 'high'     ? 'bg-amber-100 text-amber-700' :
-                            t.priority === 'medium'   ? 'bg-blue-100 text-blue-700' :
-                                                        'bg-green-100 text-green-700'
-                        )}>
-                            {PRIORITY_LABELS[t.priority]}
-                        </span>
-                    </div>
-                ))}
+                <Row label="Plinth Area" value={data.plinth_area} />
+                <Row label="Slab Area" value={data.slab_area} />
+                <Row label="Road Size" value={data.road_size} />
+                <Row label="Road Direction" value={data.road_direction} />
+                <Row label="Headroom Available" value={data.head_room ? 'Yes' : 'No'} />
+                {data.remarks && <Row label="Remarks" value={data.remarks} />}
+                {data.other_info && <Row label="Other Info" value={data.other_info} />}
+                <Row label="Attached Files" value={data.setup_files?.length ? `${data.setup_files.length} file(s)` : null} />
+                <Row label="Attached Voice Notes" value={data.setup_voices?.length ? `${data.setup_voices.length} voice note(s)` : null} />
             </Section>
 
             {/* Mark as Handover Checkbox (for older uploaded data) */}

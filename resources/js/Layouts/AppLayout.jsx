@@ -174,22 +174,7 @@ export default function AppLayout({ children, title }) {
                     {sidebarOpen ? (
                         <JcmsLogo size={36} />
                     ) : (
-                        <div
-                            style={{
-                                width: 36,
-                                height: 36,
-                                background: 'linear-gradient(135deg, #f59e0b, #dc2626)',
-                                borderRadius: '10px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="3" width="18" height="18" rx="2" />
-                                <path d="M9 3v18" /><path d="M3 9h18" /><path d="M3 15h18" />
-                            </svg>
-                        </div>
+                        <JcmsLogo size={32} iconOnly className="mx-auto" />
                     )}
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}

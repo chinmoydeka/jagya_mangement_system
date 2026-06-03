@@ -10,12 +10,18 @@ import {
     Mail,
     Save,
     ChevronRight,
+    Briefcase,
+    Plus,
+    Trash2,
+    Loader2,
 } from 'lucide-react';
 import AppLayout from '@/Layouts/AppLayout';
 import { cn } from '@/lib/utils';
+import axios from 'axios';
 
 const sections = [
     { id: 'general', label: 'General', icon: Building2 },
+    { id: 'organization', label: 'Organization Settings', icon: Briefcase },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'email', label: 'Email & SMTP', icon: Mail },
     { id: 'appearance', label: 'Appearance', icon: Palette },
@@ -43,9 +49,109 @@ function Toggle({ checked, onChange }) {
     );
 }
 
-export default function AppSettings() {
+export default function AppSettings({ departments = [], designations = [], offices = [] }) {
     const [activeSection, setActiveSection] = useState('general');
     const [saved, setSaved] = useState(false);
+
+    // Organization details state
+    const [localDepts, setLocalDepts] = useState(departments);
+    const [localDesigs, setLocalDesigs] = useState(designations);
+    const [localOffices, setLocalOffices] = useState(offices);
+
+    const [newDeptName, setNewDeptName] = useState('');
+    const [newDesigName, setNewDesigName] = useState('');
+    const [newOfficeName, setNewOfficeName] = useState('');
+
+    const [processingDept, setProcessingDept] = useState(false);
+    const [processingDesig, setProcessingDesig] = useState(false);
+    const [processingOffice, setProcessingOffice] = useState(false);
+
+    const handleAddDept = async (e) => {
+        e.preventDefault();
+        if (!newDeptName.trim()) return;
+        setProcessingDept(true);
+        try {
+            const res = await axios.post('/departments', { name: newDeptName.trim() });
+            if (res.data.success) {
+                setLocalDepts([...localDepts, res.data.department]);
+                setNewDeptName('');
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to add department');
+        } finally {
+            setProcessingDept(false);
+        }
+    };
+
+    const handleDeleteDept = async (id) => {
+        if (!confirm('Are you sure you want to delete this department?')) return;
+        try {
+            const res = await axios.delete(`/departments/${id}`);
+            if (res.data.success) {
+                setLocalDepts(localDepts.filter(d => d.id !== id));
+            }
+        } catch (err) {
+            alert('Failed to delete department');
+        }
+    };
+
+    const handleAddDesig = async (e) => {
+        e.preventDefault();
+        if (!newDesigName.trim()) return;
+        setProcessingDesig(true);
+        try {
+            const res = await axios.post('/designations', { name: newDesigName.trim() });
+            if (res.data.success) {
+                setLocalDesigs([...localDesigs, res.data.designation]);
+                setNewDesigName('');
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to add designation');
+        } finally {
+            setProcessingDesig(false);
+        }
+    };
+
+    const handleDeleteDesig = async (id) => {
+        if (!confirm('Are you sure you want to delete this designation?')) return;
+        try {
+            const res = await axios.delete(`/designations/${id}`);
+            if (res.data.success) {
+                setLocalDesigs(localDesigs.filter(d => d.id !== id));
+            }
+        } catch (err) {
+            alert('Failed to delete designation');
+        }
+    };
+
+    const handleAddOffice = async (e) => {
+        e.preventDefault();
+        if (!newOfficeName.trim()) return;
+        setProcessingOffice(true);
+        try {
+            const res = await axios.post('/offices', { name: newOfficeName.trim() });
+            if (res.data.success) {
+                setLocalOffices([...localOffices, res.data.office]);
+                setNewOfficeName('');
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to add office');
+        } finally {
+            setProcessingOffice(false);
+        }
+    };
+
+    const handleDeleteOffice = async (id) => {
+        if (!confirm('Are you sure you want to delete this office?')) return;
+        try {
+            const res = await axios.delete(`/offices/${id}`);
+            if (res.data.success) {
+                setLocalOffices(localOffices.filter(o => o.id !== id));
+            }
+        } catch (err) {
+            alert('Failed to delete office');
+        }
+    };
 
     const [settings, setSettings] = useState({
         companyName: 'Jagya Construction Pvt Ltd',
@@ -164,6 +270,134 @@ export default function AppSettings() {
                                     </div>
                                 </div>
                             </>
+                        )}
+
+                        {activeSection === 'organization' && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Organization Settings</h2>
+                                    <p className="text-sm text-slate-500 mt-0.5">Manage departments, job designations, and office locations dynamically.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                    {/* Departments Card */}
+                                    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-2xl p-4 flex flex-col h-[400px]">
+                                        <div className="font-bold text-xs text-slate-400 uppercase tracking-wider mb-3">Departments ({localDepts.length})</div>
+                                        <form onSubmit={handleAddDept} className="flex gap-2 mb-3">
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="New Department..."
+                                                value={newDeptName}
+                                                onChange={e => setNewDeptName(e.target.value)}
+                                                className="flex-1 px-3 py-2 text-xs bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-slate-800 dark:text-slate-200"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={processingDept}
+                                                className="p-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white rounded-xl transition-all"
+                                            >
+                                                {processingDept ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                                            </button>
+                                        </form>
+                                        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                                            {localDepts.map(dept => (
+                                                <div key={dept.id} className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/50 rounded-xl">
+                                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{dept.name}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteDept(dept.id)}
+                                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {localDepts.length === 0 && (
+                                                <div className="text-center text-slate-400 text-xs py-8">No departments added</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Designations Card */}
+                                    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-2xl p-4 flex flex-col h-[400px]">
+                                        <div className="font-bold text-xs text-slate-400 uppercase tracking-wider mb-3">Designations ({localDesigs.length})</div>
+                                        <form onSubmit={handleAddDesig} className="flex gap-2 mb-3">
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="New Designation..."
+                                                value={newDesigName}
+                                                onChange={e => setNewDesigName(e.target.value)}
+                                                className="flex-1 px-3 py-2 text-xs bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-slate-800 dark:text-slate-200"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={processingDesig}
+                                                className="p-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white rounded-xl transition-all"
+                                            >
+                                                {processingDesig ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                                            </button>
+                                        </form>
+                                        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                                            {localDesigs.map(desig => (
+                                                <div key={desig.id} className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/50 rounded-xl">
+                                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{desig.name}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteDesig(desig.id)}
+                                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {localDesigs.length === 0 && (
+                                                <div className="text-center text-slate-400 text-xs py-8">No designations added</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Offices Card */}
+                                    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 rounded-2xl p-4 flex flex-col h-[400px]">
+                                        <div className="font-bold text-xs text-slate-400 uppercase tracking-wider mb-3">Office Locations ({localOffices.length})</div>
+                                        <form onSubmit={handleAddOffice} className="flex gap-2 mb-3">
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="New Office..."
+                                                value={newOfficeName}
+                                                onChange={e => setNewOfficeName(e.target.value)}
+                                                className="flex-1 px-3 py-2 text-xs bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-slate-800 dark:text-slate-200"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={processingOffice}
+                                                className="p-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-white rounded-xl transition-all"
+                                            >
+                                                {processingOffice ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                                            </button>
+                                        </form>
+                                        <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                                            {localOffices.map(off => (
+                                                <div key={off.id} className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/50 rounded-xl">
+                                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{off.name}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteOffice(off.id)}
+                                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {localOffices.length === 0 && (
+                                                <div className="text-center text-slate-400 text-xs py-8">No offices added</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         )}
 
                         {activeSection === 'notifications' && (

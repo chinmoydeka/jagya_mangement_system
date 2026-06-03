@@ -4,16 +4,14 @@ import { X, ChevronRight, ChevronLeft, CheckCircle2, Save, Loader2 } from 'lucid
 import WizardStep1 from './WizardStep1';
 import WizardStep2 from './WizardStep2';
 import WizardStep3 from './WizardStep3';
-import WizardStep4 from './WizardStep4';
 import WizardReview from './WizardReview';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
     { id: 1, label: 'Project & Client', short: 'Info' },
     { id: 2, label: 'Documents',        short: 'Docs' },
-    { id: 3, label: 'Team Assignment',  short: 'Team' },
-    { id: 4, label: 'Tasks & Planning', short: 'Tasks' },
-    { id: 5, label: 'Review & Create',  short: 'Review' },
+    { id: 3, label: 'Work Information',  short: 'Work' },
+    { id: 4, label: 'Review & Create',  short: 'Review' },
 ];
 
 const DRAFT_KEY = 'jcms_project_draft';
@@ -21,6 +19,9 @@ const DRAFT_KEY = 'jcms_project_draft';
 const defaultData = {
     // Step 1
     client_id: null, client: null,
+    client_source: 'Office',
+    client_source_member_name: '',
+    client_source_member_id: null,
     title: '', type: 'client', description: '',
     agreement_date: '', start_date: '', deadline: '',
     location: '', map_coords: null,
@@ -29,9 +30,23 @@ const defaultData = {
     // Step 2
     documents: [],
     // Step 3
-    team: [],
-    // Step 4
-    tasks: [],
+    work_type: 'RCC',
+    rcc_foundation: '',
+    rcc_finishing: '',
+    rcc_class: 'A Class',
+    assam_roof_type: 'Tin',
+    assam_wood_quality: 'Standard',
+    assam_rooms: '',
+    other_scope: '',
+    plinth_area: '',
+    slab_area: '',
+    head_room: false,
+    remarks: '',
+    other_info: '',
+    road_size: '',
+    road_direction: 'North',
+    setup_files: [],
+    setup_voices: [],
 };
 
 export default function ProjectWizard({ open, onClose }) {
@@ -73,11 +88,31 @@ export default function ProjectWizard({ open, onClose }) {
     }
 
     function canProceedFromStep1() {
-        if (!data.title) return false;
-        if (!data.start_date) return false;
-        if (data.type === 'client' && !data.client_id) return false;
+        if (data.type === 'client') {
+            if (!data.client_id) return false;
+            if (data.client_source === 'Team Member' && !data.client_source_member_name?.trim()) return false;
+        }
         return true;
     }
+
+    // Auto-generate project name (title) on review step
+    // Format: work type + foundation in + class with + plinth area and + slab area
+    useEffect(() => {
+        if (step === 4) {
+            const wt = data.work_type || 'RCC';
+            const fd = data.work_type === 'RCC' && data.rcc_foundation ? ` ${data.rcc_foundation}` : '';
+            const cl = data.work_type === 'RCC' && data.rcc_class ? ` in ${data.rcc_class}` : '';
+            const pa = data.plinth_area || '0';
+            const sa = data.slab_area || '0';
+            const generatedTitle = `${wt}${fd}${cl} with ${pa} sq ft plinth area and ${sa} sq ft as slab area`;
+            if (data.title !== generatedTitle) {
+                // update state without calling update(fields) which saves to localstorage to avoid loop
+                const next = { ...data, title: generatedTitle };
+                setData(next);
+                localStorage.setItem(DRAFT_KEY, JSON.stringify({ data: next, step: step, ts: Date.now() }));
+            }
+        }
+    }, [step, data.work_type, data.rcc_foundation, data.rcc_class, data.plinth_area, data.slab_area]);
 
     function goNext() { 
         if (step === 1 && !canProceedFromStep1()) return;
@@ -105,7 +140,16 @@ export default function ProjectWizard({ open, onClose }) {
         formData.append('title', data.title);
         formData.append('type', data.type);
         formData.append('description', data.description || '');
-        if (data.client_id) formData.append('client_id', data.client_id);
+        if (data.client_id) {
+            formData.append('client_id', data.client_id);
+            formData.append('client_source', data.client_source || 'Office');
+            if (data.client_source_member_name) {
+                formData.append('client_source_member_name', data.client_source_member_name);
+            }
+            if (data.client_source_member_id) {
+                formData.append('client_source_member_id', String(data.client_source_member_id));
+            }
+        }
         formData.append('agreement_date', data.agreement_date || '');
         formData.append('start_date', data.start_date || '');
         formData.append('deadline', data.deadline || '');
@@ -123,9 +167,41 @@ export default function ProjectWizard({ open, onClose }) {
         }
         formData.append('status', finalStatus);
         
-        data.team.forEach(m => {
-            formData.append('team_ids[]', m.id);
-        });
+        // Append Work Information fields
+        formData.append('work_type', data.work_type || 'RCC');
+        formData.append('plinth_area', data.plinth_area || '');
+        formData.append('slab_area', data.slab_area || '');
+        formData.append('head_room', data.head_room ? '1' : '0');
+        formData.append('remarks', data.remarks || '');
+        formData.append('other_info', data.other_info || '');
+        formData.append('road_size', data.road_size || '');
+        formData.append('road_direction', data.road_direction || 'North');
+
+        if (data.work_type === 'RCC') {
+            formData.append('rcc_foundation', data.rcc_foundation || '');
+            formData.append('rcc_finishing', data.rcc_finishing || '');
+            formData.append('rcc_class', data.rcc_class || 'A Class');
+        } else {
+            formData.append('assam_type_details', JSON.stringify({
+                other_scope: data.other_scope || ''
+            }));
+        }
+
+        if (data.setup_files) {
+            data.setup_files.forEach((fileObj) => {
+                if (fileObj.file) {
+                    formData.append('setup_files[]', fileObj.file);
+                }
+            });
+        }
+
+        if (data.setup_voices) {
+            data.setup_voices.forEach((vObj) => {
+                if (vObj.file) {
+                    formData.append('setup_voices[]', vObj.file);
+                }
+            });
+        }
 
         // Add documents (file attachments)
         data.documents.forEach((doc, index) => {
@@ -137,38 +213,6 @@ export default function ProjectWizard({ open, onClose }) {
             formData.append(`document_names[${index}]`, doc.name || '');
             formData.append(`document_descriptions[${index}]`, doc.description || '');
             formData.append(`document_categories[${index}]`, doc.category || 'general');
-        });
-
-        // Add tasks
-        data.tasks.forEach((t, index) => {
-            formData.append(`tasks[${index}][title]`, t.title || 'Untitled Task');
-            formData.append(`tasks[${index}][description]`, t.description || '');
-            formData.append(`tasks[${index}][priority]`, t.priority || 'medium');
-            formData.append(`tasks[${index}][status]`, t.status || 'to-do');
-            if (t.assignee_id) formData.append(`tasks[${index}][assignee_id]`, t.assignee_id);
-            if (t.collaborator_ids) {
-                t.collaborator_ids.forEach(cid => {
-                    formData.append(`tasks[${index}][collaborator_ids][]`, cid);
-                });
-            }
-
-            // Task files
-            if (t.attachments) {
-                t.attachments.forEach((fileObj) => {
-                    if (fileObj.file) {
-                        formData.append(`task_files_${index}[]`, fileObj.file);
-                    }
-                });
-            }
-
-            // Task voice notes
-            if (t.voice_notes) {
-                t.voice_notes.forEach((vObj) => {
-                    if (vObj.file) {
-                        formData.append(`task_voices_${index}[]`, vObj.file);
-                    }
-                });
-            }
         });
 
         router.post('/projects', formData, {
@@ -264,8 +308,7 @@ export default function ProjectWizard({ open, onClose }) {
                     {step === 1 && <WizardStep1 data={data} update={update} />}
                     {step === 2 && <WizardStep2 data={data} update={update} />}
                     {step === 3 && <WizardStep3 data={data} update={update} />}
-                    {step === 4 && <WizardStep4 data={data} update={update} />}
-                    {step === 5 && (
+                    {step === 4 && (
                         <WizardReview 
                             data={data} 
                             markAsCompleted={markAsCompleted} 
@@ -294,7 +337,7 @@ export default function ProjectWizard({ open, onClose }) {
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
-                        {step === 5 ? (
+                        {step === 4 ? (
                             <>
                                 <button
                                     onClick={() => handleCreate(true)}

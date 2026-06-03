@@ -15,6 +15,7 @@ use App\Http\Controllers\MediaController;
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register-team', [TeamController::class, 'register'])->name('team.register');
 });
 
 // Authenticated Routes
@@ -51,6 +52,14 @@ Route::middleware('auth')->group(function () {
     // Team
     Route::get('/team', [TeamController::class, 'index'])->name('team.index');
     Route::post('/team', [TeamController::class, 'store'])->name('team.store');
+    Route::post('/departments', [TeamController::class, 'storeDepartment'])->name('departments.store');
+    Route::delete('/departments/{department}', [TeamController::class, 'destroyDepartment'])->name('departments.destroy');
+    Route::post('/designations', [TeamController::class, 'storeDesignation'])->name('designations.store');
+    Route::delete('/designations/{designation}', [TeamController::class, 'destroyDesignation'])->name('designations.destroy');
+    Route::post('/offices', [TeamController::class, 'storeOffice'])->name('offices.store');
+    Route::delete('/offices/{office}', [TeamController::class, 'destroyOffice'])->name('offices.destroy');
+    Route::post('/team/{user}/approve', [TeamController::class, 'approve'])->name('team.approve');
+    Route::delete('/team/{user}', [TeamController::class, 'destroy'])->name('team.destroy');
 
     // Front Office
     Route::get('/front-office', [FrontOfficeController::class, 'index'])->name('front-office.index');

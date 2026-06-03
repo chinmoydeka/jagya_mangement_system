@@ -9,6 +9,10 @@ class AppSettingsController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Settings/AppSettings');
+        return Inertia::render('Settings/AppSettings', [
+            'departments'  => \App\Models\Department::all(),
+            'designations' => \App\Models\Designation::all(),
+            'offices'      => \App\Models\Office::all(),
+        ]);
     }
 }

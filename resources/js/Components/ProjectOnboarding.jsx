@@ -2,10 +2,12 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import {
     Activity, FileText, DollarSign, Users, ChevronRight, Check, X,
-    Upload, Loader2, Save, Trash2, Search, Plus, Mic, StopCircle
+    Upload, Loader2, Save, Trash2, Search, Plus, Mic, StopCircle,
+    ChevronDown, Info, ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
+import TasksPlanningStep from './TasksPlanningStep';
 
 export default function ProjectOnboarding({ project, onClose }) {
     const [step, setStep] = useState(1);
@@ -53,102 +55,28 @@ export default function ProjectOnboarding({ project, onClose }) {
     );
     const [teamSearch, setTeamSearch] = useState('');
 
-    // Work Information Form State
-    const [workForm, setWorkForm] = useState({
-        work_type: project.work_type || 'RCC',
-        rcc_foundation: project.rcc_foundation || '',
-        rcc_finishing: project.rcc_finishing || '',
-        rcc_class: project.rcc_class || 'A Class',
-        assam_roof_type: project.assam_type_details?.roof_type || 'Tin',
-        assam_wood_quality: project.assam_type_details?.wood_quality || 'Standard',
-        assam_rooms: project.assam_type_details?.rooms || '',
-        other_scope: project.assam_type_details?.other_scope || '',
-        plinth_area: project.plinth_area || '',
-        slab_area: project.slab_area || '',
-        head_room: project.head_room || false,
-        remarks: project.remarks || '',
-        other_info: project.other_info || '',
-        road_size: project.road_size || '',
-        road_direction: project.road_direction || 'North'
-    });
+    // Tasks Planning State
+    const [tasks, setTasks] = useState([]);
+    const [allMembers, setAllMembers] = useState([]);
+    const [loadingMembers, setLoadingMembers] = useState(false);
 
-    // Voice notes and attachments state
-    const [attachments, setAttachments] = useState([]);
-    const [voiceNotes, setVoiceNotes] = useState([]);
-    const [recording, setRecording] = useState(false);
-    const [recordingError, setRecordingError] = useState(null);
-
-    const mediaRecorderRef = useRef(null);
-    const audioChunksRef = useRef([]);
-    const streamRef = useRef(null);
-
-    async function toggleRecording() {
-        setRecordingError(null);
-        if (recording) {
-            if (mediaRecorderRef.current) {
-                mediaRecorderRef.current.stop();
-            }
-            setRecording(false);
-        } else {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                setRecordingError('Microphone access requires a Secure Context (HTTPS or localhost). If you are accessing this server remotely via HTTP, please connect using secure HTTPS or localhost.');
-                return;
-            }
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                streamRef.current = stream;
-                audioChunksRef.current = [];
-                const mediaRecorder = new MediaRecorder(stream);
-                mediaRecorderRef.current = mediaRecorder;
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-                    const file = new File([audioBlob], `setup_voice_${Date.now()}.wav`, { type: 'audio/wav' });
-                    
-                    setVoiceNotes(prev => [
-                        ...prev,
-                        {
-                            file,
-                            name: `setup_voice_${Date.now()}.wav`,
-                            size: file.size
-                        }
-                    ]);
-
-                    // Stop tracks to release mic
-                    stream.getTracks().forEach(track => track.stop());
-                };
-
-                mediaRecorder.start();
-                setRecording(true);
-            } catch (err) {
-                console.error(err);
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    setRecordingError('Microphone access was denied. Please allow microphone permissions in your browser settings.');
-                } else {
-                    setRecordingError('Failed to access microphone: ' + err.message);
-                }
-            }
-        }
-    }
-
-    // Auto cleanup stream on unmount
     useEffect(() => {
-        return () => {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
-        };
+        setLoadingMembers(true);
+        axios.get('/projects/team-members')
+            .then(res => {
+                setAllMembers(res.data || []);
+            })
+            .catch(err => {
+                console.error('Error fetching team members:', err);
+            })
+            .finally(() => {
+                setLoadingMembers(false);
+            });
     }, []);
 
     const steps = [
         { id: 1, title: 'Welcome', icon: Activity },
-        { id: 2, title: 'Work Information', icon: FileText },
+        { id: 2, title: 'Tasks & Planning', icon: ClipboardList },
         { id: 3, title: 'Payment Milestones', icon: DollarSign },
         { id: 4, title: 'Agreements', icon: FileText },
         { id: 5, title: 'KYC', icon: Users },
@@ -168,42 +96,35 @@ export default function ProjectOnboarding({ project, onClose }) {
         try {
             const formData = new FormData();
 
-            // 0. Work Information
-            formData.append('work_type', workForm.work_type);
-            formData.append('plinth_area', workForm.plinth_area);
-            formData.append('slab_area', workForm.slab_area);
-            formData.append('head_room', workForm.head_room ? '1' : '0');
-            formData.append('remarks', workForm.remarks);
-            formData.append('other_info', workForm.other_info);
-            formData.append('road_size', workForm.road_size);
-            formData.append('road_direction', workForm.road_direction);
-
-            if (workForm.work_type === 'RCC') {
-                formData.append('rcc_foundation', workForm.rcc_foundation);
-                formData.append('rcc_finishing', workForm.rcc_finishing);
-                formData.append('rcc_class', workForm.rcc_class);
-            } else if (workForm.work_type === 'ASSAM TYPE') {
-                formData.append('assam_type_details', JSON.stringify({
-                    roof_type: workForm.assam_roof_type,
-                    wood_quality: workForm.assam_wood_quality,
-                    rooms: workForm.assam_rooms
-                }));
-            } else {
-                formData.append('assam_type_details', JSON.stringify({
-                    other_scope: workForm.other_scope
-                }));
-            }
-
-            // 0.5 Voice Notes and attachments
-            attachments.forEach((fileObj, index) => {
-                if (fileObj.file) {
-                    formData.append('setup_files[]', fileObj.file);
+            // 0. Tasks & Planning
+            tasks.forEach((t, index) => {
+                formData.append(`tasks[${index}][title]`, t.title || 'Untitled Task');
+                formData.append(`tasks[${index}][description]`, t.description || '');
+                formData.append(`tasks[${index}][priority]`, t.priority || 'medium');
+                formData.append(`tasks[${index}][status]`, t.status || 'to-do');
+                if (t.assignee_id) formData.append(`tasks[${index}][assignee_id]`, t.assignee_id);
+                if (t.collaborator_ids) {
+                    t.collaborator_ids.forEach(cid => {
+                        formData.append(`tasks[${index}][collaborator_ids][]`, cid);
+                    });
                 }
-            });
 
-            voiceNotes.forEach((vObj, index) => {
-                if (vObj.file) {
-                    formData.append('setup_voices[]', vObj.file);
+                // Task files
+                if (t.attachments) {
+                    t.attachments.forEach((fileObj) => {
+                        if (fileObj.file) {
+                            formData.append(`task_files_${index}[]`, fileObj.file);
+                        }
+                    });
+                }
+
+                // Task voice notes
+                if (t.voice_notes) {
+                    t.voice_notes.forEach((vObj) => {
+                        if (vObj.file) {
+                            formData.append(`task_voices_${index}[]`, vObj.file);
+                        }
+                    });
                 }
             });
 
@@ -355,319 +276,14 @@ export default function ProjectOnboarding({ project, onClose }) {
 
                     {step === 2 && (
                         <div className="space-y-6 animate-fade-in pr-2">
-                            <div className="text-center mb-6">
-                                <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">Project Work Information</h3>
-                                <p className="text-xs text-slate-500">Provide the technical and site logistical specifications.</p>
-                            </div>
-
-                            <div className="bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 space-y-5">
-                                {/* Work Type Selector */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Work Type</label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                        {['RCC', 'ASSAM TYPE', 'RENOVATION', 'INTERIOR', 'HALF DONE', 'OTHER'].map(type => (
-                                            <button
-                                                key={type}
-                                                type="button"
-                                                onClick={() => setWorkForm(prev => ({ ...prev, work_type: type }))}
-                                                className={cn(
-                                                    "px-3 py-2.5 rounded-xl text-xs font-bold border transition-all duration-205",
-                                                    workForm.work_type === type
-                                                        ? "bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20 scale-[1.02]"
-                                                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-amber-300 dark:hover:border-amber-800"
-                                                )}
-                                            >
-                                                {type}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Conditional Fields based on Work Type */}
-                                <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800/50 space-y-4 transition-all duration-300">
-                                    {workForm.work_type === 'RCC' && (
-                                        <div className="space-y-4 animate-fade-in">
-                                            <h4 className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">RCC Structure Specifications</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Foundation (e.g., G+1, G+2)</label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="e.g. G+1, G+2"
-                                                        value={workForm.rcc_foundation}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, rcc_foundation: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Class</label>
-                                                    <select
-                                                        value={workForm.rcc_class}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, rcc_class: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500"
-                                                    >
-                                                        {['Infinite Series', 'Ultimate Luxury', 'Royal Classic', 'A Class', 'Royal Standard', 'Royal Basic', 'Prime Commercial'].map(c => (
-                                                            <option key={c} value={c}>{c}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="sm:col-span-2">
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Full Finishing Details</label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="e.g. Full finishing, or ground floor finishing only, structure only for other floors"
-                                                        value={workForm.rcc_finishing}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, rcc_finishing: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {workForm.work_type === 'ASSAM TYPE' && (
-                                        <div className="space-y-4 animate-fade-in">
-                                            <h4 className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Assam Type Specifications</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Roof Type</label>
-                                                    <select
-                                                        value={workForm.assam_roof_type}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, assam_roof_type: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500"
-                                                    >
-                                                        {['Tin', 'Tiles', 'Decorative Profile', 'Other'].map(r => (
-                                                            <option key={r} value={r}>{r}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Wood Quality Class</label>
-                                                    <select
-                                                        value={workForm.assam_wood_quality}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, assam_wood_quality: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500"
-                                                    >
-                                                        {['Standard', 'Premium Teak', 'Local Hardwood', 'None'].map(w => (
-                                                            <option key={w} value={w}>{w}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">No. of Rooms</label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder="e.g. 3, 4"
-                                                        value={workForm.assam_rooms}
-                                                        onChange={e => setWorkForm(prev => ({ ...prev, assam_rooms: e.target.value }))}
-                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {['RENOVATION', 'INTERIOR', 'HALF DONE', 'OTHER'].includes(workForm.work_type) && (
-                                        <div className="space-y-4 animate-fade-in">
-                                            <h4 className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">{workForm.work_type} Specifications</h4>
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Scope of Work & Specific Details</label>
-                                                <textarea
-                                                    rows={3}
-                                                    placeholder="Specify custom modifications, material choices, or specific project guidelines..."
-                                                    value={workForm.other_scope}
-                                                    onChange={e => setWorkForm(prev => ({ ...prev, other_scope: e.target.value }))}
-                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 resize-none placeholder-slate-400 dark:placeholder-slate-500"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Area Details */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Plinth Area (as per agreement)</label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., 1,200 sq ft"
-                                            value={workForm.plinth_area}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, plinth_area: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 font-medium placeholder-slate-400 dark:placeholder-slate-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Slab Area (as per agreement)</label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., 1,450 sq ft"
-                                            value={workForm.slab_area}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, slab_area: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 font-medium placeholder-slate-400 dark:placeholder-slate-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Logistics and Site Information */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Road Size</label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., 12 ft wide, 20 ft wide"
-                                            value={workForm.road_size}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, road_size: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 font-medium placeholder-slate-400 dark:placeholder-slate-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Road Direction</label>
-                                        <select
-                                            value={workForm.road_direction}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, road_direction: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 font-medium"
-                                        >
-                                            {['North', 'South', 'East', 'West', 'North-East', 'North-West', 'South-East', 'South-West'].map(d => (
-                                                <option key={d} value={d}>{d}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Head Room Checkbox */}
-                                <div className="flex items-center gap-3 pt-1">
-                                    <input
-                                        type="checkbox"
-                                        id="head_room"
-                                        checked={workForm.head_room}
-                                        onChange={e => setWorkForm(prev => ({ ...prev, head_room: e.target.checked }))}
-                                        className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900"
-                                    />
-                                    <label htmlFor="head_room" className="text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer select-none">
-                                        Head-room is available on site
-                                    </label>
-                                </div>
-
-                                {/* Remarks & Other Information */}
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Remarks or Notation</label>
-                                        <input
-                                            type="text"
-                                            placeholder="General project notes, specific requests, client notifications, etc."
-                                            value={workForm.remarks}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, remarks: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Other Information</label>
-                                        <textarea
-                                            rows={2}
-                                            placeholder="Any other supplementary information..."
-                                            value={workForm.other_info}
-                                            onChange={e => setWorkForm(prev => ({ ...prev, other_info: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:ring-2 focus:ring-amber-500 resize-none placeholder-slate-400 dark:placeholder-slate-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Voice Notes & File Attachments */}
-                                <div className="p-4 bg-white dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800/50 space-y-4">
-                                    <h4 className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Mic size={14} /> Voice Notes & Supporting Files
-                                    </h4>
-                                    
-                                    {recordingError && (
-                                        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl flex items-start gap-2.5 mb-2.5">
-                                            <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                                            <div className="flex-1 space-y-0.5 text-left">
-                                                <p className="text-[10px] font-bold text-amber-800 dark:text-amber-400">Microphone Information</p>
-                                                <p className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-500">{recordingError}</p>
-                                            </div>
-                                            <button type="button" onClick={() => setRecordingError(null)} className="text-[10px] font-bold text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-250 shrink-0">Dismiss</button>
-                                        </div>
-                                    )}
-
-                                    <div className="flex flex-wrap gap-3 pt-1">
-                                        <input 
-                                            type="file" 
-                                            multiple 
-                                            id="setup_attachments"
-                                            className="hidden" 
-                                            onChange={e => {
-                                                if (!e.target.files) return;
-                                                const files = Array.from(e.target.files).map(f => ({
-                                                    file: f,
-                                                    name: f.name,
-                                                    size: f.size
-                                                }));
-                                                setAttachments(prev => [...prev, ...files]);
-                                                e.target.value = '';
-                                            }} 
-                                        />
-
-                                        <button
-                                            type="button"
-                                            onClick={() => document.getElementById('setup_attachments')?.click()}
-                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-200/50"
-                                        >
-                                            <Upload size={13} />
-                                            Attach Files {attachments.length > 0 && `(${attachments.length})`}
-                                        </button>
-                                        
-                                        <button
-                                            type="button"
-                                            onClick={toggleRecording}
-                                            className={cn(
-                                                "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border",
-                                                recording 
-                                                    ? "bg-red-500 hover:bg-red-600 text-white border-red-500 animate-pulse shadow-md"
-                                                    : "text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200/50"
-                                            )}
-                                        >
-                                            <Mic size={13} className={cn(recording ? "text-white animate-pulse" : "text-red-500")} />
-                                            {recording ? "Recording... Click to Save" : "Record Voice Note"} {voiceNotes.length > 0 && `(${voiceNotes.length})`}
-                                        </button>
-                                    </div>
-
-                                    {/* List attachments and voice notes */}
-                                    {(attachments.length > 0 || voiceNotes.length > 0) && (
-                                        <div className="text-[11px] text-slate-500 space-y-1.5 pt-1">
-                                            {attachments.map((f, fi) => (
-                                                <div key={fi} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/40 p-1.5 px-3 rounded-lg border border-slate-200/20">
-                                                    <div className="flex items-center gap-1.5 min-w-0">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-350 truncate max-w-xs">{f.name}</span>
-                                                        <span>({(f.size / 1024).toFixed(1)} KB)</span>
-                                                    </div>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== fi))}
-                                                        className="text-red-500 hover:text-red-650 p-0.5"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {voiceNotes.map((v, vi) => (
-                                                <div key={vi} className="flex items-center justify-between bg-red-50/50 dark:bg-red-500/5 p-1.5 px-3 rounded-lg border border-red-100/50">
-                                                    <div className="flex items-center gap-1.5 min-w-0 text-red-600">
-                                                        <span className="font-semibold truncate max-w-xs">{v.name}</span>
-                                                        <span>({(v.size / 1024).toFixed(1)} KB)</span>
-                                                    </div>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setVoiceNotes(prev => prev.filter((_, idx) => idx !== vi))}
-                                                        className="text-red-500 hover:text-red-655 p-0.5"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            <TasksPlanningStep 
+                                data={{ tasks, team: allMembers }} 
+                                update={(fields) => {
+                                    if (fields.tasks) {
+                                        setTasks(fields.tasks);
+                                    }
+                                }} 
+                            />
                         </div>
                     )}
 
@@ -1038,9 +654,13 @@ export default function ProjectOnboarding({ project, onClose }) {
                                         className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
                                     />
                                 </div>
-
                                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                                    {project.team && project.team.length > 0 ? project.team
+                                    {loadingMembers ? (
+                                        <div className="flex items-center justify-center p-6">
+                                            <Loader2 className="animate-spin text-amber-500 mr-2" size={16} />
+                                            <span className="text-xs text-slate-500">Loading team members...</span>
+                                        </div>
+                                    ) : allMembers && allMembers.length > 0 ? allMembers
                                         .filter(m => (m.name || '').toLowerCase().includes(teamSearch.toLowerCase()) || (m.role || '').toLowerCase().includes(teamSearch.toLowerCase()))
                                         .map(member => {
                                             const isSelected = !!teamForm[member.id];

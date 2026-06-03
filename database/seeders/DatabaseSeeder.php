@@ -32,5 +32,23 @@ class DatabaseSeeder extends Seeder
         foreach ($admins as $admin) {
             User::updateOrCreate(['email' => $admin['email']], $admin);
         }
+
+        // Seed departments
+        $departments = ['Engineering', 'Architecture', 'Finance', 'HR', 'Front Office', 'IT', 'Marketing'];
+        foreach ($departments as $dept) {
+            \App\Models\Department::firstOrCreate(['name' => $dept]);
+        }
+
+        // Seed designations
+        $designations = ['Site Supervisor', 'Junior Architect', 'Senior Engineer', 'Project Manager', 'Accountant', 'Staff'];
+        foreach ($designations as $desig) {
+            \App\Models\Designation::firstOrCreate(['name' => $desig]);
+        }
+
+        // Seed offices
+        $offices = ['Guwahati Head Office', 'Dispur Branch', 'Dibrugarh Branch', 'Jorhat Branch'];
+        foreach ($offices as $office) {
+            \App\Models\Office::firstOrCreate(['name' => $office]);
+        }
     }
 }

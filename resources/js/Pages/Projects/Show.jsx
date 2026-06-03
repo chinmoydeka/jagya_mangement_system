@@ -960,10 +960,27 @@ export default function Show({ project: initialProject }) {
                 <div className="flex items-center gap-3">
                     <Link
                         href="/projects"
-                        className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                        className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0"
                     >
                         <ArrowLeft size={16} />
                     </Link>
+                    {!isInternal && project.client && (
+                        <div className="flex flex-col items-center shrink-0 mr-1.5">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-lg overflow-hidden relative shadow-sm border border-slate-200 dark:border-slate-800">
+                                <span className="absolute inset-0 flex items-center justify-center">
+                                    {project.client.name?.charAt(0).toUpperCase()}
+                                </span>
+                                {project.client.photo_path && (
+                                    <img
+                                        src={project.client.photo_path}
+                                        alt={project.client.name}
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                        onError={e => { e.target.style.display = 'none'; }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    )}
                     <div>
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
@@ -983,6 +1000,11 @@ export default function Show({ project: initialProject }) {
                         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
                             {project.title}
                         </h1>
+                        {!isInternal && project.client && (
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                                Client: <span className="text-slate-700 dark:text-slate-350 font-bold">{project.client.name}</span>
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -1441,18 +1463,35 @@ export default function Show({ project: initialProject }) {
                                                     )}
                                                     {project.work_type === 'ASSAM TYPE' && (
                                                         <div className="space-y-2.5">
-                                                            <div className="flex justify-between items-center text-xs">
-                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">Roof Type:</span>
-                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.roof_type || '—'}</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center text-xs">
-                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">Wood Quality:</span>
-                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.wood_quality || '—'}</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center text-xs">
-                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">No. of Rooms:</span>
-                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.rooms || '—'}</span>
-                                                            </div>
+                                                            {project.assam_type_details?.roof_type && (
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Roof Type:</span>
+                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.roof_type}</span>
+                                                                </div>
+                                                            )}
+                                                            {project.assam_type_details?.wood_quality && (
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">Wood Quality:</span>
+                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.wood_quality}</span>
+                                                                </div>
+                                                            )}
+                                                            {project.assam_type_details?.rooms && (
+                                                                <div className="flex justify-between items-center text-xs">
+                                                                    <span className="text-slate-500 dark:text-slate-400 font-medium">No. of Rooms:</span>
+                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.rooms}</span>
+                                                                </div>
+                                                            )}
+                                                            {project.assam_type_details?.other_scope && (
+                                                                <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Scope of Work:</span>
+                                                                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 italic leading-relaxed">
+                                                                        {project.assam_type_details?.other_scope}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                            {!project.assam_type_details?.roof_type && !project.assam_type_details?.wood_quality && !project.assam_type_details?.rooms && !project.assam_type_details?.other_scope && (
+                                                                <span className="text-xs text-slate-500 italic">No specifications set</span>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {!['RCC', 'ASSAM TYPE'].includes(project.work_type) && (
@@ -1514,8 +1553,16 @@ export default function Show({ project: initialProject }) {
                                                 </div>
                                             </div>
 
-                                            {(project.remarks || project.other_info) && (
-                                                <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {(project.remarks || project.other_info || project.client_source) && (
+                                                <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                    {project.client_source && (
+                                                        <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
+                                                            <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Referral / Client Source</span>
+                                                            <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">
+                                                                Client brought by: <span className="font-extrabold text-amber-600 dark:text-amber-400">{project.client_source === 'Team Member' ? `${project.client_source_member_name} (Team)` : project.client_source}</span>
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                     {project.remarks && (
                                                         <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
                                                             <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Remarks & Notations</span>
@@ -1890,18 +1937,35 @@ export default function Show({ project: initialProject }) {
                                                 )}
                                                 {project.work_type === 'ASSAM TYPE' && (
                                                     <div className="space-y-2.5">
-                                                        <div className="flex justify-between items-center text-xs">
-                                                            <span className="text-slate-500 dark:text-slate-400 font-medium">Roof Type:</span>
-                                                            <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.roof_type || '—'}</span>
-                                                        </div>
-                                                        <div className="flex justify-between items-center text-xs">
-                                                            <span className="text-slate-500 dark:text-slate-400 font-medium">Wood Quality:</span>
-                                                            <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.wood_quality || '—'}</span>
-                                                        </div>
-                                                        <div className="flex justify-between items-center text-xs">
-                                                            <span className="text-slate-500 dark:text-slate-400 font-medium">No. of Rooms:</span>
-                                                            <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.rooms || '—'}</span>
-                                                        </div>
+                                                        {project.assam_type_details?.roof_type && (
+                                                            <div className="flex justify-between items-center text-xs">
+                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">Roof Type:</span>
+                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.roof_type}</span>
+                                                            </div>
+                                                        )}
+                                                        {project.assam_type_details?.wood_quality && (
+                                                            <div className="flex justify-between items-center text-xs">
+                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">Wood Quality:</span>
+                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.wood_quality}</span>
+                                                            </div>
+                                                        )}
+                                                        {project.assam_type_details?.rooms && (
+                                                            <div className="flex justify-between items-center text-xs">
+                                                                <span className="text-slate-500 dark:text-slate-400 font-medium">No. of Rooms:</span>
+                                                                <span className="font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{project.assam_type_details?.rooms}</span>
+                                                            </div>
+                                                        )}
+                                                        {project.assam_type_details?.other_scope && (
+                                                            <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Scope of Work:</span>
+                                                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 italic leading-relaxed">
+                                                                    {project.assam_type_details?.other_scope}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {!project.assam_type_details?.roof_type && !project.assam_type_details?.wood_quality && !project.assam_type_details?.rooms && !project.assam_type_details?.other_scope && (
+                                                            <span className="text-xs text-slate-500 italic">No specifications set</span>
+                                                        )}
                                                     </div>
                                                 )}
                                                 {!['RCC', 'ASSAM TYPE'].includes(project.work_type) && (
@@ -1962,19 +2026,26 @@ export default function Show({ project: initialProject }) {
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {(project.remarks || project.other_info) && (
-                                            <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {(project.remarks || project.other_info || project.client_source) && (
+                                            <div className="mt-6 pt-5 border-t border-slate-200/50 dark:border-slate-800/80 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                {project.client_source && (
+                                                    <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
+                                                        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Referral / Client Source</span>
+                                                        <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">
+                                                            Client brought by: <span className="font-extrabold text-amber-600 dark:text-amber-400">{project.client_source === 'Team Member' ? `${project.client_source_member_name} (Team)` : project.client_source}</span>
+                                                        </p>
+                                                    </div>
+                                                )}
                                                 {project.remarks && (
                                                     <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
                                                         <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Remarks & Notations</span>
-                                                        <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold leading-relaxed">{project.remarks}</p>
+                                                        <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">{project.remarks}</p>
                                                     </div>
                                                 )}
                                                 {project.other_info && (
                                                     <div className="bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/30 dark:border-slate-800/40">
                                                         <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block mb-1">Other Supplementary Info</span>
-                                                        <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold leading-relaxed">{project.other_info}</p>
+                                                        <p className="text-xs text-slate-700 dark:text-slate-350 font-semibold leading-relaxed">{project.other_info}</p>
                                                     </div>
                                                 )}
                                             </div>
@@ -3212,18 +3283,35 @@ export default function Show({ project: initialProject }) {
                                                         )}
                                                         {project.work_type === 'ASSAM TYPE' && (
                                                             <div className="space-y-2">
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">Roof Type:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.roof_type || '—'}</span>
-                                                                </div>
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">Wood Quality:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.wood_quality || '—'}</span>
-                                                                </div>
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">No. of Rooms:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.rooms || '—'}</span>
-                                                                </div>
+                                                                {project.assam_type_details?.roof_type && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">Roof Type:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.roof_type}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.wood_quality && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">Wood Quality:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.wood_quality}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.rooms && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">No. of Rooms:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.rooms}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.other_scope && (
+                                                                    <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Scope of Work:</span>
+                                                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 italic leading-relaxed">
+                                                                            {project.assam_type_details?.other_scope}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                                {!project.assam_type_details?.roof_type && !project.assam_type_details?.wood_quality && !project.assam_type_details?.rooms && !project.assam_type_details?.other_scope && (
+                                                                    <span className="text-xs text-slate-500 italic">No specifications set</span>
+                                                                )}
                                                             </div>
                                                         )}
                                                         {!['RCC', 'ASSAM TYPE'].includes(project.work_type) && (
@@ -3275,18 +3363,26 @@ export default function Show({ project: initialProject }) {
                                                     </div>
                                                 </div>
 
-                                                {(project.remarks || project.other_info) && (
-                                                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {(project.remarks || project.other_info || project.client_source) && (
+                                                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                        {project.client_source && (
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Referral / Client Source</span>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">
+                                                                    Client brought by: <span className="font-extrabold text-amber-600 dark:text-amber-400">{project.client_source === 'Team Member' ? `${project.client_source_member_name} (Team)` : project.client_source}</span>
+                                                                </p>
+                                                            </div>
+                                                        )}
                                                         {project.remarks && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Remarks & Notations</span>
-                                                                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{project.remarks}</p>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">{project.remarks}</p>
                                                             </div>
                                                         )}
                                                         {project.other_info && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Other Supplementary Info</span>
-                                                                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{project.other_info}</p>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">{project.other_info}</p>
                                                             </div>
                                                         )}
                                                     </div>
@@ -3592,18 +3688,35 @@ export default function Show({ project: initialProject }) {
                                                         )}
                                                         {project.work_type === 'ASSAM TYPE' && (
                                                             <div className="space-y-2">
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">Roof Type:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.roof_type || '—'}</span>
-                                                                </div>
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">Wood Quality:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.wood_quality || '—'}</span>
-                                                                </div>
-                                                                <div className="flex justify-between text-xs">
-                                                                    <span className="text-slate-500">No. of Rooms:</span>
-                                                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.rooms || '—'}</span>
-                                                                </div>
+                                                                {project.assam_type_details?.roof_type && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">Roof Type:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.roof_type}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.wood_quality && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">Wood Quality:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.wood_quality}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.rooms && (
+                                                                    <div className="flex justify-between text-xs">
+                                                                        <span className="text-slate-500">No. of Rooms:</span>
+                                                                        <span className="font-extrabold text-slate-800 dark:text-slate-200">{project.assam_type_details?.rooms}</span>
+                                                                    </div>
+                                                                )}
+                                                                {project.assam_type_details?.other_scope && (
+                                                                    <div className="space-y-1 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Scope of Work:</span>
+                                                                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 italic leading-relaxed">
+                                                                            {project.assam_type_details?.other_scope}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                                {!project.assam_type_details?.roof_type && !project.assam_type_details?.wood_quality && !project.assam_type_details?.rooms && !project.assam_type_details?.other_scope && (
+                                                                    <span className="text-xs text-slate-500 italic">No specifications set</span>
+                                                                )}
                                                             </div>
                                                         )}
                                                         {!['RCC', 'ASSAM TYPE'].includes(project.work_type) && (
@@ -3655,18 +3768,26 @@ export default function Show({ project: initialProject }) {
                                                     </div>
                                                 </div>
 
-                                                {(project.remarks || project.other_info) && (
-                                                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {(project.remarks || project.other_info || project.client_source) && (
+                                                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/60 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                        {project.client_source && (
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block mb-1">Referral / Client Source</span>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">
+                                                                    Client brought by: <span className="font-extrabold text-amber-600 dark:text-amber-400">{project.client_source === 'Team Member' ? `${project.client_source_member_name} (Team)` : project.client_source}</span>
+                                                                </p>
+                                                            </div>
+                                                        )}
                                                         {project.remarks && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Remarks & Notations</span>
-                                                                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{project.remarks}</p>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">{project.remarks}</p>
                                                             </div>
                                                         )}
                                                         {project.other_info && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Other Supplementary Info</span>
-                                                                <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">{project.other_info}</p>
+                                                                <p className="text-xs text-slate-650 dark:text-slate-300 font-semibold">{project.other_info}</p>
                                                             </div>
                                                         )}
                                                     </div>
@@ -4787,6 +4908,14 @@ export default function Show({ project: initialProject }) {
                                         <MapPin size={12} />
                                     </div>
                                     <span className="font-semibold truncate text-slate-700 dark:text-slate-350">{project.client.city || 'Not specified'}</span>
+                                </div>
+                                <div className="flex items-center gap-2.5 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+                                    <div className="w-6.5 h-6.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+                                        <Users size={12} />
+                                    </div>
+                                    <span className="font-semibold truncate text-slate-700 dark:text-slate-350">
+                                        Ref: {project.client_source === 'Team Member' ? `${project.client_source_member_name} (Team)` : (project.client_source || 'Office')}
+                                    </span>
                                 </div>
                             </div>
                         </div>

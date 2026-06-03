@@ -1,4 +1,4 @@
-# JCMS Developer Workflow & Strict Rules (developer_rules.md)
+# JCMS Developer Workflow & Strict Rules (.cursorrules)
 
 You are Antigravity, the expert pair-programmer. When working in the JCMS workspace, you must **strictly** adhere to the following 5 custom rules and workflow guidelines at all times.
 
@@ -68,6 +68,36 @@ All layouts must use the identical spacing conventions established in `Projects.
 Always use these exact structures for buttons:
 * **Primary Button**: `className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg hover:-translate-y-0.5"` combined with `style={{ background: 'linear-gradient(135deg, #f59e0b, #dc2626)', boxShadow: '0 4px 14px rgba(245,158,11,0.3)' }}`.
 * **Secondary Button**: `className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm hover:shadow"`. Use this for cancels, back buttons, and less prominent actions.
+
+### Rule 2.9: Universal Global Alerts (GlobalToast)
+Never use native `alert()` for success or error states. Use the custom `GlobalToast` component by dispatching the window event:
+```javascript
+window.dispatchEvent(new CustomEvent('jcms-toast', { 
+    detail: { type: 'success' | 'error' | 'warning', title: 'Action Status', message: 'Details here' } 
+}));
+```
+
+### Rule 2.10: System-Wide Dark Mode Handling
+We enforce a bulletproof, flash-free dark mode handling standard across the entire application:
+* **Tailwind Class-Based Activation**: Always control dark mode by toggle-applying the `.dark` class to the root `document.documentElement` element.
+* **Flash Prevention (Critical)**: To avoid a blinding Flash of Incorrect Theme (FOIT) on page load, a lightweight blocking script must run in the `<head>` of the main template (`app.blade.php`) *before* CSS and JS stylesheets render:
+  ```html
+  <script>
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+      } else {
+          document.documentElement.classList.remove('dark');
+      }
+  </script>
+  ```
+* **Unified Theme Storage**: Save the user's active theme state in `localStorage.theme` using three mutually exclusive values: `'light'`, `'dark'`, or `'system'`. If set to `'system'`, immediately synchronize with the OS preference and listen to changes dynamically via the `(prefers-color-scheme: dark)` media query.
+* **Slate/Zinc Dark Color Palette**:
+  * Page Background: `dark:bg-slate-950`
+  * Panels, Cards, Drawer & Sidebar: `dark:bg-slate-900`
+  * Borders, Dividers, & Lines: `dark:border-slate-800`
+  * High-Contrast Text (Headings/Labels): `dark:text-slate-100` or `dark:text-slate-200`
+  * Muted/Metadata Text (Subtitles/Captions): `dark:text-slate-400` or `dark:text-slate-500`
+* **Tailwind & MUI Cohesion**: When custom-styling MUI components using `sx` properties, always utilize class-conditional styles or dynamic CSS variables to ensure that MUI cards, dividers, and dialog content adapt seamlessly and instantly to the slate color scheme when dark mode is enabled.
 
 ---
 

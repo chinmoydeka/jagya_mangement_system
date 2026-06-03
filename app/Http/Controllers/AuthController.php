@@ -10,7 +10,11 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
-        return Inertia::render('Auth/Login');
+        return Inertia::render('Auth/Login', [
+            'departments'  => \App\Models\Department::orderBy('name')->get()->pluck('name'),
+            'designations' => \App\Models\Designation::orderBy('name')->get()->pluck('name'),
+            'offices'      => \App\Models\Office::orderBy('name')->get()->pluck('name'),
+        ]);
     }
 
     public function login(Request $request)
@@ -21,6 +25,14 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            if (!Auth::user()->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+                return back()->withErrors([
+                    'email' => 'Your account is pending admin approval. Please contact the administrator.',
+                ])->onlyInput('email');
+            }
             $request->session()->regenerate();
             return redirect()->intended('/dashboard');
         }

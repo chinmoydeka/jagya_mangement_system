@@ -72,17 +72,77 @@ class ProjectController extends Controller
             'budget'      => 'nullable|numeric|min:0',
             'team_ids'    => 'nullable|array',
             'team_ids.*'  => 'exists:users,id',
+            'work_type'          => 'nullable|string',
+            'rcc_foundation'     => 'nullable|string',
+            'rcc_finishing'      => 'nullable|string',
+            'rcc_class'          => 'nullable|string',
+            'plinth_area'        => 'nullable|string',
+            'slab_area'          => 'nullable|string',
+            'head_room'          => 'nullable|boolean',
+            'remarks'            => 'nullable|string',
+            'other_info'         => 'nullable|string',
+            'road_size'          => 'nullable|string',
+            'road_direction'     => 'nullable|string',
+            'client_source'             => 'nullable|string',
+            'client_source_member_name' => 'nullable|string',
+            'client_source_member_id'   => 'nullable|exists:users,id',
         ]);
 
         $project = DB::transaction(function () use ($validated, $request) {
+            $assamDetails = null;
+            if ($request->has('assam_type_details') && is_string($request->input('assam_type_details'))) {
+                $assamDetails = json_decode($request->input('assam_type_details'), true);
+            }
+
             $project = Project::create([
                 ...$validated,
-                'status'     => $validated['status'] ?? 'draft',
-                'created_by' => Auth::id(),
+                'status'             => $validated['status'] ?? 'draft',
+                'created_by'         => Auth::id(),
+                'assam_type_details' => $assamDetails,
+                'client_source'             => $validated['client_source'] ?? 'Office',
+                'client_source_member_name' => $validated['client_source_member_name'] ?? null,
+                'client_source_member_id'   => $validated['client_source_member_id'] ?? null,
             ]);
 
             if (!empty($validated['team_ids'])) {
                 $project->team()->sync($validated['team_ids']);
+            }
+
+            // Process project creation custom files/voices (formerly onboarding custom files/voices)
+            if ($request->hasFile('setup_files')) {
+                foreach ($request->file('setup_files') as $file) {
+                    $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                    $fileSize = $file->getSize();
+                    $file->move(public_path('uploads/projects'), $filename);
+                    
+                    $project->documents()->create([
+                        'document_name' => $file->getClientOriginalName(),
+                        'description'   => 'Uploaded during project creation',
+                        'category'      => 'supporting_files',
+                        'file_path'     => '/uploads/projects/' . $filename,
+                        'file_type'     => $file->getClientMimeType(),
+                        'file_size'     => $fileSize,
+                        'uploaded_by'   => Auth::id(),
+                    ]);
+                }
+            }
+
+            if ($request->hasFile('setup_voices')) {
+                foreach ($request->file('setup_voices') as $file) {
+                    $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                    $fileSize = $file->getSize();
+                    $file->move(public_path('uploads/voices'), $filename);
+                    
+                    $project->documents()->create([
+                        'document_name' => 'Voice Note - ' . date('Y-m-d H:i:s'),
+                        'description'   => 'Voice recorded during project creation',
+                        'category' => 'voice_note',
+                        'file_path'     => '/uploads/voices/' . $filename,
+                        'file_type'     => $file->getClientMimeType(),
+                        'file_size'     => $fileSize,
+                        'uploaded_by'   => Auth::id(),
+                    ]);
+                }
             }
 
             // ── Save Inline Documents ──
@@ -876,6 +936,57 @@ class ProjectController extends Controller
                     'file_size'     => $fileSize,
                     'uploaded_by'   => auth()->id(),
                 ]);
+            }
+        }
+        // 4.7. Save Tasks submitted during onboarding setup
+        if ($request->has('tasks')) {
+            $tasksData = $request->input('tasks', []);
+            foreach ($tasksData as $i => $t) {
+                $task = ProjectTask::create([
+                    'project_id'       => $project->id,
+                    'title'            => $t['title'] ?? 'Untitled Task',
+                    'description'      => $t['description'] ?? null,
+                    'priority'         => $t['priority'] ?? 'medium',
+                    'status'           => $t['status'] ?? 'to-do',
+                    'assignee_id'      => isset($t['assignee_id']) ? intval($t['assignee_id']) : null,
+                    'collaborator_ids' => isset($t['collaborator_ids']) ? array_map('intval', $t['collaborator_ids']) : [],
+                    'attachments'      => [],
+                    'voice_notes'      => [],
+                    'comments'         => [],
+                    'created_by'       => auth()->id(),
+                ]);
+
+                // Task specific attachments upload
+                if ($request->hasFile("task_files_{$i}")) {
+                    $attachments = [];
+                    foreach ($request->file("task_files_{$i}") as $file) {
+                        $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                        $fileSize = $file->getSize();
+                        $file->move(public_path('uploads/tasks'), $filename);
+                        $attachments[] = [
+                            'name' => $file->getClientOriginalName(),
+                            'path' => '/uploads/tasks/' . $filename,
+                            'size' => $fileSize,
+                        ];
+                    }
+                    $task->update(['attachments' => $attachments]);
+                }
+
+                // Task specific voice notes upload
+                if ($request->hasFile("task_voices_{$i}")) {
+                    $voices = [];
+                    foreach ($request->file("task_voices_{$i}") as $file) {
+                        $filename = \Illuminate\Support\Str::random(16) . '.' . $file->getClientOriginalExtension();
+                        $fileSize = $file->getSize();
+                        $file->move(public_path('uploads/voices'), $filename);
+                        $voices[] = [
+                            'name' => 'voice_note_' . rand(10, 99) . '.wav',
+                            'path' => '/uploads/voices/' . $filename,
+                            'size' => $fileSize,
+                        ];
+                    }
+                    $task->update(['voice_notes' => $voices]);
+                }
             }
         }
 

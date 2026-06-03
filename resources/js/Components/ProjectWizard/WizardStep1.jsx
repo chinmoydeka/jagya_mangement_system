@@ -3,6 +3,7 @@ import { Search, Plus, X, Loader2, MapPin, Navigation, Compass, Globe, LocateFix
 import axios from 'axios';
 import ClientFormDrawer from '@/Components/Clients/ClientFormDrawer';
 import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@mui/material';
 
 const inputCls = `w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200
     dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50
@@ -45,6 +46,183 @@ export default function WizardStep1({ data, update }) {
     const mapRef      = useRef(null);
     const markerRef   = useRef(null);
     const geocoderRef = useRef(null);
+
+    // Duration calculation state
+    const [durationValue, setDurationValue] = useState('');
+    const [durationUnit, setDurationUnit]   = useState('months');
+
+    // Same location checkbox state
+    const [isSameLocation, setIsSameLocation] = useState(false);
+
+    // Team member referral state
+    const [teamMembers, setTeamMembers] = useState([]);
+    const [teamSearchQuery, setTeamSearchQuery] = useState(data.client_source_member_name || '');
+    const [showTeamSuggestions, setShowTeamSuggestions] = useState(false);
+
+    useEffect(() => {
+        axios.get('/projects/team-members')
+            .then(res => {
+                if (Array.isArray(res.data)) {
+                    setTeamMembers(res.data);
+                }
+            })
+            .catch(err => {
+                console.error("Error loading team members:", err);
+            });
+    }, []);
+
+    const filteredTeamMembers = teamSearchQuery.trim() === ''
+        ? teamMembers
+        : teamMembers.filter(m => m.name.toLowerCase().includes(teamSearchQuery.toLowerCase()));
+
+    // Auto-detect same location on mount/client load
+    useEffect(() => {
+        if (!data.client) {
+            setIsSameLocation(false);
+            return;
+        }
+
+        const client = data.client;
+        const fullClientAddress = [
+            client.address,
+            client.city,
+            client.state,
+            client.pincode
+        ].filter(Boolean).join(', ');
+
+        if (data.location && data.location === fullClientAddress) {
+            setIsSameLocation(true);
+        } else {
+            setIsSameLocation(false);
+        }
+    }, [data.client]);
+
+    // Initialize duration helpers from existing values on mount
+    useEffect(() => {
+        if (data.start_date && data.deadline) {
+            const start = new Date(data.start_date);
+            const end = new Date(data.deadline);
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                const totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+                if (totalMonths > 0) {
+                    if (totalMonths % 12 === 0) {
+                        setDurationValue((totalMonths / 12).toString());
+                        setDurationUnit('years');
+                    } else {
+                        setDurationValue(totalMonths.toString());
+                        setDurationUnit('months');
+                    }
+                }
+            }
+        }
+    }, []);
+
+    // ── Duration & Deadline calculations ─────────────────────────────────────────
+    const updateDeadline = (start, val, unit) => {
+        if (!start || !val) return;
+        const value = parseInt(val, 10);
+        if (isNaN(value) || value <= 0) return;
+
+        const date = new Date(start);
+        if (isNaN(date.getTime())) return;
+
+        if (unit === 'years') {
+            date.setFullYear(date.getFullYear() + value);
+        } else {
+            date.setMonth(date.getMonth() + value);
+        }
+
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        update({ deadline: `${yyyy}-${mm}-${dd}` });
+    };
+
+    const handleStartDateChange = (val) => {
+        update({ start_date: val });
+        if (durationValue) {
+            updateDeadline(val, durationValue, durationUnit);
+        }
+    };
+
+    const handleDurationValueChange = (val) => {
+        setDurationValue(val);
+        if (data.start_date) {
+            updateDeadline(data.start_date, val, durationUnit);
+        }
+    };
+
+    const handleDurationUnitChange = (val) => {
+        setDurationUnit(val);
+        if (data.start_date && durationValue) {
+            updateDeadline(data.start_date, durationValue, val);
+        }
+    };
+
+    const handleDeadlineChange = (val) => {
+        update({ deadline: val });
+        if (data.start_date && val) {
+            const start = new Date(data.start_date);
+            const end = new Date(val);
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                const totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+                if (totalMonths > 0) {
+                    if (totalMonths % 12 === 0) {
+                        setDurationValue((totalMonths / 12).toString());
+                        setDurationUnit('years');
+                    } else {
+                        setDurationValue(totalMonths.toString());
+                        setDurationUnit('months');
+                    }
+                }
+            }
+        }
+    };
+
+    // ── Location Syncing ─────────────────────────────────────────────────────────
+    const handleLocationChange = (val) => {
+        update({ location: val });
+        setIsSameLocation(false);
+    };
+
+    const handleSameLocationChange = (e) => {
+        const checked = e.target.checked;
+        setIsSameLocation(checked);
+        if (checked && data.client) {
+            const client = data.client;
+            const fullClientAddress = [
+                client.address,
+                client.city,
+                client.state,
+                client.pincode
+            ].filter(Boolean).join(', ');
+
+            const clientLat = client.latitude ? parseFloat(client.latitude) : null;
+            const clientLng = client.longitude ? parseFloat(client.longitude) : null;
+            const clientMapLoc = client.map_location && !client.map_location.startsWith('http') 
+                ? client.map_location 
+                : fullClientAddress;
+
+            update({
+                location: fullClientAddress,
+                map_location: clientMapLoc,
+                latitude: clientLat,
+                longitude: clientLng,
+                map_coords: clientLat && clientLng ? { lat: clientLat, lng: clientLng } : null
+            });
+
+            if (clientLat && clientLng) {
+                setCoords({ lat: clientLat, lng: clientLng });
+                if (mapRef.current && markerRef.current) {
+                    mapRef.current.panTo({ lat: clientLat, lng: clientLng });
+                    markerRef.current.setPosition({ lat: clientLat, lng: clientLng });
+                }
+            }
+            if (clientMapLoc || fullClientAddress) {
+                setTempAddress(clientMapLoc || fullClientAddress);
+            }
+        }
+    };
 
     // ── Client search ──────────────────────────────────────────────────────────
     useEffect(() => {
@@ -218,6 +396,7 @@ export default function WizardStep1({ data, update }) {
             longitude: coords.lng,
             map_coords: coords 
         });
+        setIsSameLocation(false);
         setShowMap(false);
     };
 
@@ -250,25 +429,111 @@ export default function WizardStep1({ data, update }) {
                 <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Client *</label>
                     {data.client ? (
-                        <div className="flex items-center gap-3 p-4 rounded-2xl border-2 border-green-400 bg-green-50 dark:bg-green-500/5">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden shrink-0 relative">
-                                <span className="absolute inset-0 flex items-center justify-center">
-                                    {data.client.name?.charAt(0).toUpperCase()}
-                                </span>
-                                {data.client.photo_path && (
-                                    <img
-                                        src={data.client.photo_path}
-                                        alt={data.client.name}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                        onError={e => { e.target.style.display = 'none'; }}
-                                    />
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 p-4 rounded-2xl border-2 border-green-400 bg-green-50 dark:bg-green-500/5">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden shrink-0 relative">
+                                    <span className="absolute inset-0 flex items-center justify-center">
+                                        {data.client.name?.charAt(0).toUpperCase()}
+                                    </span>
+                                    {data.client.photo_path && (
+                                        <img
+                                            src={data.client.photo_path}
+                                            alt={data.client.name}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            onError={e => { e.target.style.display = 'none'; }}
+                                        />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-slate-900 dark:text-slate-100">{data.client.name}</p>
+                                    <p className="text-xs text-slate-500">{data.client.client_id} · {data.client.mobile}</p>
+                                </div>
+                                <button onClick={clearClient} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"><X size={14} /></button>
+                            </div>
+
+                            {/* Dropdown for client source */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Who brought the client? *</label>
+                                    <select
+                                        value={data.client_source || 'Office'}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            update({ 
+                                                client_source: val,
+                                                client_source_member_name: '',
+                                                client_source_member_id: null
+                                            });
+                                            setTeamSearchQuery('');
+                                        }}
+                                        className={inputCls}
+                                    >
+                                        <option value="Office">Office</option>
+                                        <option value="Boss">Boss</option>
+                                        <option value="Team Member">Team Member</option>
+                                    </select>
+                                </div>
+
+                                {data.client_source === 'Team Member' && (
+                                    <div className="relative">
+                                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Team Member Name *</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Type team member's name..."
+                                                value={data.client_source_member_name || ''}
+                                                onChange={e => {
+                                                    const query = e.target.value;
+                                                    update({ 
+                                                        client_source_member_name: query,
+                                                        client_source_member_id: null
+                                                    });
+                                                    setTeamSearchQuery(query);
+                                                    setShowTeamSuggestions(true);
+                                                }}
+                                                onFocus={() => {
+                                                    setTeamSearchQuery(data.client_source_member_name || '');
+                                                    setShowTeamSuggestions(true);
+                                                }}
+                                                onBlur={() => setTimeout(() => setShowTeamSuggestions(false), 200)}
+                                                className={inputCls}
+                                            />
+                                            {showTeamSuggestions && filteredTeamMembers.length > 0 && (
+                                                <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl max-h-48 overflow-y-auto">
+                                                    {filteredTeamMembers.map(m => (
+                                                        <button
+                                                            key={m.id}
+                                                            type="button"
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                update({
+                                                                    client_source_member_name: m.name,
+                                                                    client_source_member_id: m.id
+                                                                });
+                                                                setTeamSearchQuery(m.name);
+                                                                setShowTeamSuggestions(false);
+                                                            }}
+                                                            className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-amber-50 dark:hover:bg-amber-500/5 text-left text-xs transition-colors"
+                                                        >
+                                                            {m.photo_path ? (
+                                                                <img src={m.photo_path} alt={m.name} className="w-5 h-5 rounded-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-[9px] text-slate-500">
+                                                                    {m.avatar}
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <p className="font-semibold text-slate-850 dark:text-slate-100">{m.name}</p>
+                                                                <p className="text-[10px] text-slate-400">{m.designation}</p>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-slate-900 dark:text-slate-100">{data.client.name}</p>
-                                <p className="text-xs text-slate-500">{data.client.client_id} · {data.client.mobile}</p>
-                            </div>
-                            <button onClick={clearClient} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"><X size={14} /></button>
                         </div>
                     ) : (
                         <div className="space-y-2">
@@ -321,30 +586,71 @@ export default function WizardStep1({ data, update }) {
             {/* Project Details */}
             <div className="space-y-4">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Project Details</label>
-                <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Project Title *</label>
-                    <input type="text" value={data.title} onChange={e => update({ title: e.target.value })}
-                        placeholder="e.g. House Construction at Beltola" className={cn(inputCls, !data.title && 'border-red-300/50')} />
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Description</label>
-                    <textarea value={data.description} onChange={e => update({ description: e.target.value })}
-                        rows={3} placeholder="Brief description of the project scope..." className={cn(inputCls, 'resize-none')} />
-                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Agreement Date</label>
                         <input type="date" value={data.agreement_date} onChange={e => update({ agreement_date: e.target.value })} className={inputCls} />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Start Date *</label>
-                        <input type="date" value={data.start_date} onChange={e => update({ start_date: e.target.value })} className={inputCls} />
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Start Date</label>
+                        <input type="date" value={data.start_date} onChange={e => handleStartDateChange(e.target.value)} className={inputCls} />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Deadline</label>
-                        <input type="date" value={data.deadline} min={data.start_date} onChange={e => update({ deadline: e.target.value })} className={inputCls} />
+                        <input type="date" value={data.deadline} min={data.start_date} onChange={e => handleDeadlineChange(e.target.value)} className={inputCls} />
                     </div>
                 </div>
+
+                <Card 
+                    className="border border-slate-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/10 rounded-2xl shadow-none"
+                    sx={{
+                        borderRadius: '16px',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        background: 'transparent',
+                        boxShadow: 'none',
+                        color: 'inherit'
+                    }}
+                >
+                    <CardContent className="p-4 space-y-3" sx={{ '&:last-child': { pb: 2 } }}>
+                        <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                Project Duration Helper
+                            </label>
+                            <span className="text-[10px] text-slate-400">
+                                Auto-calculates deadline from start date
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Duration Value
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="e.g. 1, 18"
+                                    value={durationValue}
+                                    onChange={e => handleDurationValueChange(e.target.value)}
+                                    className={inputCls}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    Duration Unit
+                                </label>
+                                <select
+                                    value={durationUnit}
+                                    onChange={e => handleDurationUnitChange(e.target.value)}
+                                    className={inputCls}
+                                >
+                                    <option value="months">Month(s)</option>
+                                    <option value="years">Year(s)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Status & Location */}
@@ -363,10 +669,25 @@ export default function WizardStep1({ data, update }) {
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Site Address</label>
-                        <input type="text" value={data.location || ''} onChange={e => update({ location: e.target.value })}
+                        <input type="text" value={data.location || ''} onChange={e => handleLocationChange(e.target.value)}
                             placeholder="e.g. Beltola, Guwahati" className={inputCls} />
                     </div>
                 </div>
+
+                {data.type === 'client' && data.client && (
+                    <div className="flex items-center gap-2 px-1">
+                        <input
+                            type="checkbox"
+                            id="same_location_chk"
+                            checked={isSameLocation}
+                            onChange={handleSameLocationChange}
+                            className="rounded border-slate-300 dark:border-slate-700 text-amber-500 focus:ring-amber-500/50 bg-slate-50 dark:bg-slate-800 h-4 w-4 cursor-pointer"
+                        />
+                        <label htmlFor="same_location_chk" className="text-xs font-medium text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                            Same project location as client's address ({[data.client.city, data.client.state].filter(Boolean).join(', ') || 'Client Address'})
+                        </label>
+                    </div>
+                )}
 
                 {/* Map Launcher Card */}
                 <button type="button" onClick={() => setShowMap(true)}
