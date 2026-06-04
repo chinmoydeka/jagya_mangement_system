@@ -17,7 +17,7 @@ const STATUS_CFG = {
     'cancelled': { label: 'Cancelled',      dot: 'bg-red-500',    chip: 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400 font-bold' },
 };
 
-const FILTERS = ['All Agreement', 'Runing Project', 'Handover', 'ON Hold', 'Cancelled'];
+const FILTERS = ['All Agreement', 'Draft', 'Runing Project', 'Handover', 'ON Hold', 'Cancelled'];
 
 export default function Projects({ projects: serverProjects }) {
     const [wizardOpen, setWizardOpen] = useState(false);

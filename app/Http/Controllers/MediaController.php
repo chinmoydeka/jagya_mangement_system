@@ -124,6 +124,11 @@ class MediaController extends Controller
         ]);
 
         $uploadedFiles = [];
+        $dangerousExtensions = [
+            'php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'php7', 'phps', 
+            'exe', 'bat', 'cmd', 'sh', 'bash', 'cgi', 'pl', 'py', 'jsp', 
+            'asp', 'aspx', 'shtml', 'js', 'html', 'htm', 'jar'
+        ];
 
         if ($request->hasFile('files')) {
             // Ensure media directory exists
@@ -135,6 +140,16 @@ class MediaController extends Controller
                 $originalName = $file->getClientOriginalName();
                 $extension = $file->getClientOriginalExtension();
                 
+                // Security check: Block executable extensions and double extensions
+                $fileNameLower = strtolower($originalName);
+                foreach ($dangerousExtensions as $ext) {
+                    if (preg_match('/\.' . preg_quote($ext, '/') . '($|\.)/i', $fileNameLower)) {
+                        return response()->json([
+                            'message' => "The file '{$originalName}' is blocked for security reasons (contains dangerous extension '.{$ext}')."
+                        ], 422);
+                    }
+                }
+
                 // Reject duplicate files in the same folder
                 $folderId = $request->input('folder_id');
                 if (empty($folderId) || $folderId === 'null' || $folderId === 'undefined') {
@@ -230,6 +245,21 @@ class MediaController extends Controller
         
         if (empty($newExt) && !empty($originalExt)) {
             $newName .= '.' . $originalExt;
+        }
+
+        $dangerousExtensions = [
+            'php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'php7', 'phps', 
+            'exe', 'bat', 'cmd', 'sh', 'bash', 'cgi', 'pl', 'py', 'jsp', 
+            'asp', 'aspx', 'shtml', 'js', 'html', 'htm', 'jar'
+        ];
+
+        $newNameLower = strtolower($newName);
+        foreach ($dangerousExtensions as $ext) {
+            if (preg_match('/\.' . preg_quote($ext, '/') . '($|\.)/i', $newNameLower)) {
+                return response()->json([
+                    'message' => "Renaming to a name containing '.{$ext}' is blocked for security reasons."
+                ], 422);
+            }
         }
 
         $file->update(['name' => $newName]);

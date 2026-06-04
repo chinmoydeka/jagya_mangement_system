@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     Settings,
     Building2,
@@ -14,18 +14,20 @@ import {
     Plus,
     Trash2,
     Loader2,
+    Lock,
 } from 'lucide-react';
 import AppLayout from '@/Layouts/AppLayout';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
 
-const sections = [
-    { id: 'general', label: 'General', icon: Building2 },
-    { id: 'organization', label: 'Organization Settings', icon: Briefcase },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'email', label: 'Email & SMTP', icon: Mail },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'system', label: 'System', icon: Database },
+const allSections = [
+    { id: 'general', label: 'General', icon: Building2, roles: ['Super Admin'] },
+    { id: 'organization', label: 'Organization Settings', icon: Briefcase, roles: ['Super Admin'] },
+    { id: 'security', label: 'Security & Password', icon: Lock, roles: ['*'] },
+    { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['Super Admin'] },
+    { id: 'email', label: 'Email & SMTP', icon: Mail, roles: ['Super Admin'] },
+    { id: 'appearance', label: 'Appearance', icon: Palette, roles: ['*'] },
+    { id: 'system', label: 'System', icon: Database, roles: ['Super Admin'] },
 ];
 
 function Toggle({ checked, onChange }) {
@@ -50,8 +52,67 @@ function Toggle({ checked, onChange }) {
 }
 
 export default function AppSettings({ departments = [], designations = [], offices = [] }) {
-    const [activeSection, setActiveSection] = useState('general');
+    const { auth } = usePage().props;
+    const userRole = auth?.user?.role || 'Staff';
+    const visibleSections = allSections.filter(s => s.roles.includes('*') || s.roles.includes(userRole));
+
+    const [activeSection, setActiveSection] = useState(visibleSections[0]?.id || 'security');
     const [saved, setSaved] = useState(false);
+
+    // Password change state
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('');
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [passwordErrors, setPasswordErrors] = useState({});
+
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        setPasswordErrors({});
+        
+        if (newPassword !== newPasswordConfirmation) {
+            setPasswordErrors({ new_password: ['The new password confirmation does not match.'] });
+            window.dispatchEvent(new CustomEvent('jcms-toast', { 
+                detail: { type: 'error', title: 'Validation Error', message: 'The new password confirmation does not match.' } 
+            }));
+            return;
+        }
+
+        setChangingPassword(true);
+        try {
+            const res = await axios.post('/settings/change-password', {
+                current_password: currentPassword,
+                new_password: newPassword,
+                new_password_confirmation: newPasswordConfirmation
+            }, {
+                headers: { 'Accept': 'application/json' }
+            });
+            
+            if (res.data.success) {
+                window.dispatchEvent(new CustomEvent('jcms-toast', { 
+                    detail: { type: 'success', title: 'Success', message: res.data.message } 
+                }));
+                setCurrentPassword('');
+                setNewPassword('');
+                setNewPasswordConfirmation('');
+            }
+        } catch (err) {
+            if (err.response?.status === 422) {
+                setPasswordErrors(err.response.data.errors || {});
+                const msg = err.response.data.message || 'Validation failed. Please check the fields.';
+                window.dispatchEvent(new CustomEvent('jcms-toast', { 
+                    detail: { type: 'error', title: 'Error', message: msg } 
+                }));
+            } else {
+                const msg = err.response?.data?.message || 'Failed to change password. Please try again.';
+                window.dispatchEvent(new CustomEvent('jcms-toast', { 
+                    detail: { type: 'error', title: 'Error', message: msg } 
+                }));
+            }
+        } finally {
+            setChangingPassword(false);
+        }
+    };
 
     // Organization details state
     const [localDepts, setLocalDepts] = useState(departments);
@@ -230,7 +291,7 @@ export default function AppSettings({ departments = [], designations = [], offic
                 {/* Sidebar */}
                 <div className="lg:w-60 shrink-0">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-2 space-y-1">
-                        {sections.map((s) => {
+                        {visibleSections.map((s) => {
                             const Icon = s.icon;
                             return (
                                 <button
@@ -431,6 +492,79 @@ export default function AppSettings({ departments = [], designations = [], offic
                             </div>
                         )}
 
+                        {activeSection === 'security' && (
+                            <form onSubmit={handlePasswordChange} className="space-y-4 max-w-lg">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Security & Password</h2>
+                                    <p className="text-sm text-slate-500 mt-0.5">Ensure your account is using a long, random password to stay secure.</p>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Current Password</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={currentPassword}
+                                            onChange={(e) => setCurrentPassword(e.target.value)}
+                                            className={cn(
+                                                "w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-slate-800 dark:text-slate-200",
+                                                passwordErrors.current_password ? "border-red-500 dark:border-red-500/50" : "border-slate-200 dark:border-slate-700"
+                                            )}
+                                        />
+                                        {passwordErrors.current_password && (
+                                            <p className="text-xs text-red-500 mt-1">{passwordErrors.current_password[0]}</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">New Password</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            className={cn(
+                                                "w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-slate-800 dark:text-slate-200",
+                                                passwordErrors.new_password ? "border-red-500 dark:border-red-500/50" : "border-slate-200 dark:border-slate-700"
+                                            )}
+                                        />
+                                        {passwordErrors.new_password && (
+                                            <p className="text-xs text-red-500 mt-1">{passwordErrors.new_password[0]}</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Confirm New Password</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={newPasswordConfirmation}
+                                            onChange={(e) => setNewPasswordConfirmation(e.target.value)}
+                                            className="w-full px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 text-slate-800 dark:text-slate-200"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={changingPassword}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        style={{ background: 'linear-gradient(135deg, #f59e0b, #dc2626)', boxShadow: '0 4px 14px rgba(245,158,11,0.3)' }}
+                                    >
+                                        {changingPassword ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                Updating Password...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save size={16} />
+                                                Update Password
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
                         {activeSection === 'notifications' && (
                             <>
                                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Notification Preferences</h2>
@@ -531,16 +665,18 @@ export default function AppSettings({ departments = [], designations = [], offic
                     </div>
 
                     {/* Save Button */}
-                    <div className="flex justify-end px-6 pb-6">
-                        <button
-                            onClick={handleSave}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-                            style={{ background: saved ? '#10b981' : 'linear-gradient(135deg, #f59e0b, #dc2626)', boxShadow: '0 4px 14px rgba(245,158,11,0.3)' }}
-                        >
-                            <Save size={16} />
-                            {saved ? 'Saved!' : 'Save Changes'}
-                        </button>
-                    </div>
+                    {!['security', 'organization'].includes(activeSection) && (
+                        <div className="flex justify-end px-6 pb-6">
+                            <button
+                                onClick={handleSave}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+                                style={{ background: saved ? '#10b981' : 'linear-gradient(135deg, #f59e0b, #dc2626)', boxShadow: '0 4px 14px rgba(245,158,11,0.3)' }}
+                            >
+                                <Save size={16} />
+                                {saved ? 'Saved!' : 'Save Changes'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </AppLayout>

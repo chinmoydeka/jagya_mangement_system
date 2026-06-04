@@ -75,5 +75,6 @@ Route::middleware('auth')->group(function () {
 
     // Settings
     Route::get('/settings/app', [AppSettingsController::class, 'index'])->name('settings.app');
+    Route::post('/settings/change-password', [AppSettingsController::class, 'changePassword'])->name('settings.change-password');
     Route::get('/settings/access', [AccessController::class, 'index'])->name('settings.access');
 });

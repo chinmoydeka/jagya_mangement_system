@@ -253,11 +253,30 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
         const selectedFiles = Array.from(e.target.files);
         const newUploads = [];
         let hasLargeFiles = false;
+        let hasDangerousFiles = false;
+
+        const dangerousExtensions = [
+            'php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'php7', 'phps', 
+            'exe', 'bat', 'cmd', 'sh', 'bash', 'cgi', 'pl', 'py', 'jsp', 
+            'asp', 'aspx', 'shtml', 'js', 'html', 'htm', 'jar'
+        ];
 
         selectedFiles.forEach(f => {
             // Check if file is over 50MB (Laravel max validation limit is 51200KB)
             if (f.size > 50 * 1024 * 1024) {
                 hasLargeFiles = true;
+                return; // Skip this file
+            }
+
+            // Security check: Block executable extensions and double extensions
+            const fileNameLower = f.name.toLowerCase();
+            const isDangerous = dangerousExtensions.some(ext => {
+                const regex = new RegExp(`\\.${ext}($|\\.)`, 'i');
+                return regex.test(fileNameLower);
+            });
+
+            if (isDangerous) {
+                hasDangerousFiles = true;
                 return; // Skip this file
             }
 
@@ -271,6 +290,10 @@ export default function FileManager({ folders, files, breadcrumbs, current_folde
 
         if (hasLargeFiles) {
             triggerToast('Some files exceed the 50MB limit and were skipped.', 'error');
+        }
+
+        if (hasDangerousFiles) {
+            triggerToast('Some files were blocked for security (executable or script files).', 'error');
         }
 
         if (newUploads.length > 0) {
